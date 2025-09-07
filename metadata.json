@@ -1,0 +1,5 @@
+{
+  "name": "Book Archive",
+  "description": "Supabase altyapısını kullanan modern bir kitap arşivi yönetim uygulaması. Kullanıcılar Supabase yapılandırma dosyalarını yükleyerek kendi veritabanlarına bağlanabilir ve kitapları yönetebilirler.",
+  "requestFramePermissions": []
+}
