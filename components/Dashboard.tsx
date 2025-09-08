@@ -20,7 +20,14 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
-  const [summaryModalContent, setSummaryModalContent] = useState<{ summary: string | null, title: string, isbn: string | null }>({ summary: null, title: '', isbn: null });
+  const [summaryModalContent, setSummaryModalContent] = useState<{ 
+    summary: string | null, 
+    title: string, 
+    isbn: string | null,
+    pageCount: number | null,
+    subtitle: string | null,
+    isLoading: boolean
+  }>({ summary: null, title: '', isbn: null, pageCount: null, subtitle: null, isLoading: false });
   const [currentPage, setCurrentPage] = useState(1);
   const [totalBooks, setTotalBooks] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
@@ -137,15 +144,54 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
   };
 
   const handleViewSummary = async (id: string) => {
-    setSummaryModalContent({ summary: 'Yükleniyor...', title: 'Özet', isbn: null });
     setIsSummaryModalOpen(true);
+    setSummaryModalContent({ 
+        summary: null, 
+        title: 'Yükleniyor...', 
+        isbn: null, 
+        pageCount: null, 
+        subtitle: null, 
+        isLoading: true 
+    });
 
-    const { data, error } = await getBookSummary(supabaseClient, id);
+    const { data: summaryData, error: summaryError } = await getBookSummary(supabaseClient, id);
 
-    if (error) {
-        setSummaryModalContent({ summary: `Özet alınamadı: ${error.message}`, title: 'Hata', isbn: null });
-    } else if (data) {
-        setSummaryModalContent({ summary: data.summary, title: data.book_name, isbn: data.isbn });
+    if (summaryError) {
+        setSummaryModalContent({ 
+            summary: `Özet alınamadı: ${summaryError.message}`, 
+            title: 'Hata', 
+            isbn: null, 
+            pageCount: null, 
+            subtitle: null, 
+            isLoading: false 
+        });
+        return;
+    } 
+    
+    if (summaryData) {
+        let pageCountFromApi: number | null = null;
+        let subtitleFromApi: string | null = null;
+
+        if (summaryData.isbn) {
+            try {
+                const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${summaryData.isbn}`);
+                const data = await response.json();
+                const volumeInfo = data.items?.[0]?.volumeInfo;
+                pageCountFromApi = volumeInfo?.pageCount || null;
+                subtitleFromApi = volumeInfo?.subtitle || null;
+            } catch (error) {
+                console.error("Error fetching book details:", error);
+            }
+        }
+
+        setSummaryModalContent({ 
+            summary: summaryData.summary, 
+            title: summaryData.book_name, 
+            isbn: summaryData.isbn, 
+            pageCount: pageCountFromApi, 
+            subtitle: subtitleFromApi, 
+            isLoading: false 
+        });
     }
   };
 
@@ -272,7 +318,10 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
         onClose={() => setIsSummaryModalOpen(false)}
         summary={summaryModalContent.summary}
         title={summaryModalContent.title}
+        subtitle={summaryModalContent.subtitle}
         isbn={summaryModalContent.isbn}
+        pageCount={summaryModalContent.pageCount}
+        isLoading={summaryModalContent.isLoading}
       />
       <ConfirmationModal
         isOpen={isConfirmationModalOpen}
