@@ -1,12 +1,13 @@
 import React from 'react';
 import type { Book } from '../types';
-import { EditIcon, DeleteIcon, AiIcon } from './icons';
+import { EditIcon, DeleteIcon, AiIcon, InfoIcon } from './icons';
 
 interface BookListProps {
   books: Book[];
   onEdit: (book: Book) => void;
   onDelete: (id: string) => void;
   onAiTrigger: (id: string) => void;
+  onViewSummary: (id: string) => void;
 }
 
 const AiStatusBadge: React.FC<{ status: 'in_progress' | 'completed' | 'failed' }> = ({ status }) => {
@@ -30,15 +31,17 @@ const AiStatusBadge: React.FC<{ status: 'in_progress' | 'completed' | 'failed' }
     if (!config) return null;
   
     return (
-      <span className={`inline-flex items-center text-xs font-medium px-2.5 py-0.5 rounded-full ${config.color}`}>
-        <AiIcon className={`w-3 h-3 mr-1.5`} />
-        {config.text}
+      <span 
+        className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold ${config.color}`}
+        title={config.text}
+      >
+        AI
       </span>
     );
   };
   
 
-const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onAiTrigger }) => {
+const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onAiTrigger, onViewSummary }) => {
 
   if(books.length === 0){
     return (
@@ -53,52 +56,54 @@ const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onAiTrigge
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {books.map((book) => (
-        <div key={book.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden transition-shadow hover:shadow-xl">
-          <div className="p-6 flex flex-col flex-grow">
-            <div className="flex justify-between items-start gap-4">
-              <div className="flex-grow">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white" title={book.book_name}>{book.book_name}</h3>
-                <div className="flex items-center space-x-2 mt-1">
-                  <p className="text-md text-gray-600 dark:text-gray-400">{book.author}</p>
-                  {book.genre && (
-                      <>
-                          <span className="text-gray-300 dark:text-gray-600">&bull;</span>
-                          <span className="inline-block bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded-full dark:bg-indigo-900 dark:text-indigo-300">
-                              {book.genre}
-                          </span>
-                      </>
-                  )}
-                </div>
-                {book.isbn && <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">ISBN: {book.isbn}</p>}
-              </div>
-              <div className="flex-shrink-0 pt-1 flex items-center space-x-2">
-                {book.ai_status && <AiStatusBadge status={book.ai_status} />}
-                <button
-                    onClick={() => book.id && onAiTrigger(book.id)}
-                    className="p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="AI İşlemini Tetikle"
-                    disabled={book.ai_status === 'in_progress'}
-                >
-                    <AiIcon className="w-4 h-4" />
-                </button>
-              </div>
+        <div 
+          key={book.id} 
+          className="bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow p-4 flex flex-col space-y-3"
+        >
+          {/* Top Row */}
+          <div className="flex justify-between items-start">
+            <div className="flex-grow min-w-0">
+              <h3 className="text-base font-bold text-gray-900 dark:text-white truncate" title={book.book_name}>
+                {book.book_name}
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 truncate" title={book.author}>
+                {book.author}
+              </p>
             </div>
-            
-            <p className="text-sm text-gray-700 dark:text-gray-300 flex-grow my-4">
-              {book.summary || 'Özet bulunmuyor.'}
-            </p>
+            <div className="flex-shrink-0 flex items-center space-x-2 ml-4">
+              {book.ai_status && <AiStatusBadge status={book.ai_status} />}
+              <button
+                onClick={() => book.id && onAiTrigger(book.id)}
+                className="p-1.5 rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="AI İşlemini Tetikle"
+                disabled={book.ai_status === 'in_progress'}
+              >
+                <AiIcon className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
 
-            <div className="mt-auto flex items-center justify-end">
-                <div className="flex items-center space-x-4">
-                    <button onClick={() => onEdit(book)} className="text-yellow-500 hover:text-yellow-700 dark:text-yellow-400 dark:hover:text-yellow-300 transition-colors" title="Düzenle">
-                        <EditIcon className="w-6 h-6"/>
-                    </button>
-                    <button onClick={() => book.id && onDelete(book.id)} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors" title="Sil">
-                        <DeleteIcon className="w-6 h-6"/>
-                    </button>
-                </div>
+          {/* Bottom Row */}
+          <div className="flex justify-between items-center">
+            <div>
+              {book.genre && (
+                <span className="inline-block bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded-full dark:bg-indigo-900 dark:text-indigo-300">
+                  {book.genre}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center space-x-1">
+              <button onClick={() => book.id && onDelete(book.id)} className="p-2 rounded-full text-gray-500 hover:text-red-600 hover:bg-red-100 dark:hover:text-red-400 dark:hover:bg-gray-700 transition-colors" title="Sil">
+                  <DeleteIcon className="w-5 h-5"/>
+              </button>
+              <button onClick={() => onEdit(book)} className="p-2 rounded-full text-gray-500 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:text-yellow-400 dark:hover:bg-gray-700 transition-colors" title="Düzenle">
+                  <EditIcon className="w-5 h-5"/>
+              </button>
+              <button onClick={() => book.id && onViewSummary(book.id)} className="p-2 rounded-full text-gray-500 hover:text-blue-600 hover:bg-blue-100 dark:hover:text-blue-400 dark:hover:bg-gray-700 transition-colors" title="Özeti Görüntüle">
+                  <InfoIcon className="w-5 h-5"/>
+              </button>
             </div>
           </div>
         </div>

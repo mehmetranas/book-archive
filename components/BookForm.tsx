@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Book } from '../types';
 
 interface BookFormProps {
@@ -17,6 +17,7 @@ const BookForm: React.FC<BookFormProps> = ({ isOpen, onClose, onSubmit, initialD
     genre: '',
     added_by: 'mehmet',
   });
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (initialData) {
@@ -33,6 +34,14 @@ const BookForm: React.FC<BookFormProps> = ({ isOpen, onClose, onSubmit, initialD
     }
   }, [initialData, isOpen]);
 
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        titleInputRef.current?.focus();
+      }, 100); // Delay to ensure modal is fully rendered and transition is complete
+    }
+  }, [isOpen]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -45,6 +54,18 @@ const BookForm: React.FC<BookFormProps> = ({ isOpen, onClose, onSubmit, initialD
         return;
     }
     onSubmit(formData as Book);
+  };
+
+  const handleClear = () => {
+    setFormData({
+      book_name: '',
+      author: '',
+      isbn: '',
+      summary: '',
+      genre: '',
+      added_by: 'mehmet', // Keep this field
+    });
+    titleInputRef.current?.focus(); // Re-focus on the title input after clearing
   };
   
   if (!isOpen) return null;
@@ -59,7 +80,7 @@ const BookForm: React.FC<BookFormProps> = ({ isOpen, onClose, onSubmit, initialD
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="book_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Kitap Adı</label>
-              <input type="text" name="book_name" id="book_name" value={formData.book_name} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required/>
+              <input type="text" name="book_name" id="book_name" ref={titleInputRef} value={formData.book_name} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required/>
             </div>
             <div>
               <label htmlFor="author" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Yazar</label>
@@ -77,11 +98,20 @@ const BookForm: React.FC<BookFormProps> = ({ isOpen, onClose, onSubmit, initialD
               <label htmlFor="summary" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Özet</label>
               <textarea name="summary" id="summary" value={formData.summary ?? ''} onChange={handleChange} rows={4} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
             </div>
-            <div className="flex justify-end space-x-3 pt-4">
-              <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">İptal</button>
-              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
-                {initialData ? 'Kaydet' : 'Ekle'}
+            <div className="flex justify-between items-center pt-4">
+              <button
+                type="button"
+                onClick={handleClear}
+                className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 rounded-md hover:bg-red-100 dark:hover:bg-gray-700"
+              >
+                Temizle
               </button>
+              <div className="flex space-x-3">
+                <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">İptal</button>
+                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+                  {initialData ? 'Kaydet' : 'Ekle'}
+                </button>
+              </div>
             </div>
           </form>
         </div>

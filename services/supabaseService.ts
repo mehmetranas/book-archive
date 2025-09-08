@@ -19,12 +19,44 @@ export const initializeSupabase = (config: SupabaseConfig): SupabaseClient => {
   return window.supabase.createClient(config.supabase.url, config.supabase.anonKey);
 };
 
-export const getBooks = async (client: SupabaseClient): Promise<{ data: Book[] | null; error: PostgrestError | null }> => {
-  const { data, error } = await client
+export const getBooks = async (client: SupabaseClient, page: number, pageSize: number, searchTerm: string = ''): Promise<{ data: Book[] | null; error: PostgrestError | null }> => {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = client
     .from('books')
-    .select('*')
-    .order('created_at', { ascending: false });
+    .select('id, book_name, author, isbn, genre, added_by, created_at, updated_at, ai_status')
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (searchTerm) {
+    query = query.or(`book_name.ilike.%${searchTerm}%,author.ilike.%${searchTerm}%`);
+  }
+
+  const { data, error } = await query;
   return { data, error };
+};
+
+export const getBooksCount = async (client: SupabaseClient, searchTerm: string = ''): Promise<{ count: number | null; error: PostgrestError | null }> => {
+    let query = client
+      .from('books')
+      .select('*', { count: 'exact', head: true });
+
+    if (searchTerm) {
+      query = query.or(`book_name.ilike.%${searchTerm}%,author.ilike.%${searchTerm}%`);
+    }
+
+    const { count, error } = await query;
+    return { count, error };
+};
+
+export const getBookSummary = async (client: SupabaseClient, id: string): Promise<{ data: { summary: string | null, book_name: string, isbn: string | null } | null; error: PostgrestError | null }> => {
+    const { data, error } = await client
+      .from('books')
+      .select('summary, book_name, isbn')
+      .eq('id', id)
+      .single();
+    return { data, error };
 };
 
 export const addBook = async (client: SupabaseClient, book: Omit<Book, 'id' | 'created_at' | 'updated_at'>): Promise<{ data: Book[] | null; error: PostgrestError | null }> => {

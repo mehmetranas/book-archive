@@ -28,6 +28,12 @@ export const LogoutIcon: React.FC<IconProps> = ({ className }) => (
     </svg>
 );
 
+export const InfoIcon: React.FC<IconProps> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinejoin="round" strokeLinecap="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+    </svg>
+);
+
 export const AiIcon: React.FC<IconProps> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 132 132">
         <path d="M60.1595 60.9257L18.7605 102.325C15.7465 105.339 15.7465 110.226 18.7605 113.24C21.7746 116.254 26.6613 116.254 29.6754 113.24L71.0743 71.8405M60.1595 60.9257L71.0743 71.8405M60.1595 60.9257L64.2526 56.8326M71.0743 71.8405L75.1674 67.7474M64.2526 56.8326L64.4864 56.5983C66.6182 54.4672 70.0733 54.4672 72.2045 56.5983L75.4017 59.7955C77.5329 61.9267 77.5329 65.3818 75.4017 67.5131L75.1674 67.7474M64.2526 56.8326L75.1674 67.7474" stroke="currentColor" strokeWidth="8.25" strokeLinejoin="round"/>
