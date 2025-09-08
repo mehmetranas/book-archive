@@ -16,4 +16,5 @@ export interface Book {
   created_at?: string;
   updated_at?: string;
   ai_status?: 'in_progress' | 'completed' | 'failed' | null;
+  wants_to_read?: boolean;
 }

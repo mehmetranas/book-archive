@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Book } from '../types';
-import { EditIcon, DeleteIcon, AiIcon, InfoIcon } from './icons';
+import { EditIcon, DeleteIcon, AiIcon, InfoIcon, BookmarkIcon, BookmarkFilledIcon } from './icons';
 
 interface BookListProps {
   books: Book[];
@@ -8,6 +8,7 @@ interface BookListProps {
   onDelete: (id: string) => void;
   onAiTrigger: (id: string) => void;
   onViewSummary: (id: string) => void;
+  onToggleWantsToRead: (book: Book) => void;
 }
 
 const AiStatusBadge: React.FC<{ status: 'in_progress' | 'completed' | 'failed' }> = ({ status }) => {
@@ -41,7 +42,7 @@ const AiStatusBadge: React.FC<{ status: 'in_progress' | 'completed' | 'failed' }
   };
   
 
-const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onAiTrigger, onViewSummary }) => {
+const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onAiTrigger, onViewSummary, onToggleWantsToRead }) => {
 
   if(books.length === 0){
     return (
@@ -73,6 +74,13 @@ const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onAiTrigge
               </p>
             </div>
             <div className="flex-shrink-0 flex items-center space-x-2 ml-4">
+              <button
+                onClick={() => onToggleWantsToRead(book)}
+                className="p-1.5 rounded-full text-gray-400 hover:text-indigo-500 transition-colors"
+                title={book.wants_to_read ? "Okuma listesinden çıkar" : "Okuma listesine ekle"}
+              >
+                {book.wants_to_read ? <BookmarkFilledIcon className="w-5 h-5 text-indigo-500" /> : <BookmarkIcon className="w-5 h-5" />}
+              </button>
               {book.ai_status && <AiStatusBadge status={book.ai_status} />}
               <button
                 onClick={() => book.id && onAiTrigger(book.id)}

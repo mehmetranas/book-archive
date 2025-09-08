@@ -20,34 +20,40 @@ export const initializeSupabase = (config: SupabaseConfig): SupabaseClient => {
 };
 
 export const getBooks = async (client: SupabaseClient, page: number, pageSize: number, searchTerm: string = ''): Promise<{ data: Book[] | null; error: PostgrestError | null }> => {
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
-
-  let query = client
-    .from('books')
-    .select('id, book_name, author, isbn, genre, added_by, created_at, updated_at, ai_status')
-    .order('created_at', { ascending: false })
-    .range(from, to);
-
   if (searchTerm) {
-    query = query.or(`book_name.ilike.%${searchTerm}%,author.ilike.%${searchTerm}%`);
-  }
+    // Call the custom SQL function for searching
+    const { data, error } = await client.rpc('search_books', {
+      p_search_term: searchTerm,
+      p_page_number: page,
+      p_page_size: pageSize
+    });
+    return { data, error: error as PostgrestError | null };
+  } else {
+    // Default fetch without search
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
 
-  const { data, error } = await query;
-  return { data, error };
+    const { data, error } = await client
+      .from('books')
+      .select('id, book_name, author, isbn, genre, added_by, created_at, updated_at, ai_status, wants_to_read')
+      .order('created_at', { ascending: false })
+      .range(from, to);
+    return { data, error };
+  }
 };
 
 export const getBooksCount = async (client: SupabaseClient, searchTerm: string = ''): Promise<{ count: number | null; error: PostgrestError | null }> => {
-    let query = client
-      .from('books')
-      .select('*', { count: 'exact', head: true });
-
     if (searchTerm) {
-      query = query.or(`book_name.ilike.%${searchTerm}%,author.ilike.%${searchTerm}%`);
+        const { data, error } = await client.rpc('search_books_count', {
+            p_search_term: searchTerm
+        });
+        return { count: data, error: error as PostgrestError | null };
+    } else {
+        const { count, error } = await client
+          .from('books')
+          .select('*', { count: 'exact', head: true });
+        return { count, error };
     }
-
-    const { count, error } = await query;
-    return { count, error };
 };
 
 export const getBookSummary = async (client: SupabaseClient, id: string): Promise<{ data: { summary: string | null, book_name: string, isbn: string | null } | null; error: PostgrestError | null }> => {

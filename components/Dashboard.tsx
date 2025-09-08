@@ -5,6 +5,7 @@ import { getBooks, addBook, updateBook, deleteBook, getBookSummary, getBooksCoun
 import BookList from './BookTable';
 import BookForm from './BookForm';
 import SummaryModal from './SummaryModal';
+import ConfirmationModal from './ConfirmationModal';
 import { PlusIcon, LogoutIcon } from './icons';
 
 interface DashboardProps {
@@ -24,6 +25,8 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
   const [totalBooks, setTotalBooks] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
+  const [bookToDelete, setBookToDelete] = useState<string | null>(null);
   const booksPerPage = 10;
   const effectRan = useRef(false);
   const isInitialSearchMount = useRef(true);
@@ -146,15 +149,41 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm("Bu kitabı silmek istediğinizden emin misiniz?")) {
-      const { error } = await deleteBook(supabaseClient, id);
-      if (error) {
-        alert(`Kitap silinirken hata oluştu: ${error.message}`);
-      } else {
-        setBooks(books.filter(b => String(b.id) !== id));
-      }
+  const handleToggleWantsToRead = async (book: Book) => {
+    // Optimistic UI update
+    const updatedBooks = books.map(b => 
+      b.id === book.id ? { ...b, wants_to_read: !b.wants_to_read } : b
+    );
+    setBooks(updatedBooks);
+
+    // Update the database
+    const { error } = await updateBook(supabaseClient, book.id!, { wants_to_read: !book.wants_to_read });
+
+    if (error) {
+      alert(`"Okuma Listesi" durumu güncellenirken hata oluştu: ${error.message}`);
+      // Rollback on error
+      setBooks(books);
     }
+  };
+
+  const handleDeleteRequest = (id: string) => {
+    setBookToDelete(id);
+    setIsConfirmationModalOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!bookToDelete) return;
+    
+    const { error } = await deleteBook(supabaseClient, bookToDelete);
+    if (error) {
+      alert(`Kitap silinirken hata oluştu: ${error.message}`);
+    } else {
+      setBooks(books.filter(b => String(b.id) !== bookToDelete));
+      setTotalBooks(prev => prev - 1); // Decrement total books count
+    }
+    
+    setIsConfirmationModalOpen(false);
+    setBookToDelete(null);
   };
 
   return (
@@ -171,18 +200,18 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
               className="block w-full md:w-64 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
             />
             <button
-              onClick={() => handleOpenModal()}
-              className="inline-flex items-center justify-center p-2 border border-transparent rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105"
-              title="Yeni Kitap Ekle"
-            >
-              <PlusIcon className="w-6 h-6" />
-            </button>
-            <button
               onClick={onLogout}
               title="Yapılandırmayı Sıfırla"
               className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition"
             >
               <LogoutIcon className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+            </button>
+            <button
+              onClick={() => handleOpenModal()}
+              className="inline-flex items-center justify-center p-2 border border-transparent rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105"
+              title="Yeni Kitap Ekle"
+            >
+              <PlusIcon className="w-6 h-6" />
             </button>
           </div>
         </header>
@@ -199,7 +228,14 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
             </div>
           ) : (
             <>
-              <BookList books={books} onEdit={handleOpenModal} onDelete={handleDelete} onAiTrigger={handleAiTrigger} onViewSummary={handleViewSummary} />
+              <BookList 
+                books={books} 
+                onEdit={handleOpenModal} 
+                onDelete={handleDeleteRequest} 
+                onAiTrigger={handleAiTrigger} 
+                onViewSummary={handleViewSummary}
+                onToggleWantsToRead={handleToggleWantsToRead}
+              />
               <div className="mt-6 flex justify-between items-center">
                 <button
                   onClick={() => handlePageChange(currentPage - 1)}
@@ -237,6 +273,13 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
         summary={summaryModalContent.summary}
         title={summaryModalContent.title}
         isbn={summaryModalContent.isbn}
+      />
+      <ConfirmationModal
+        isOpen={isConfirmationModalOpen}
+        onClose={() => setIsConfirmationModalOpen(false)}
+        onConfirm={handleDelete}
+        title="Kitabı Sil"
+        message="Bu kitabı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz."
       />
     </div>
   );

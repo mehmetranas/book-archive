@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Book } from '../types';
+import { ClearIcon } from './icons';
 
 interface BookFormProps {
   isOpen: boolean;
@@ -56,6 +57,10 @@ const BookForm: React.FC<BookFormProps> = ({ isOpen, onClose, onSubmit, initialD
     onSubmit(formData as Book);
   };
 
+  const handleClearInput = (fieldName: keyof Omit<Book, 'id' | 'created_at' | 'updated_at' | 'added_by'>) => {
+    setFormData(prev => ({ ...prev, [fieldName]: '' }));
+  };
+
   const handleClear = () => {
     setFormData({
       book_name: '',
@@ -80,23 +85,58 @@ const BookForm: React.FC<BookFormProps> = ({ isOpen, onClose, onSubmit, initialD
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="book_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Kitap Adı</label>
-              <input type="text" name="book_name" id="book_name" ref={titleInputRef} value={formData.book_name} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required/>
+              <div className="relative mt-1">
+                <input type="text" name="book_name" id="book_name" ref={titleInputRef} value={formData.book_name} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" required/>
+                {formData.book_name && (
+                  <button type="button" onClick={() => handleClearInput('book_name')} className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <ClearIcon className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"/>
+                  </button>
+                )}
+              </div>
             </div>
             <div>
               <label htmlFor="author" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Yazar</label>
-              <input type="text" name="author" id="author" value={formData.author} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"/>
+              <div className="relative mt-1">
+                <input type="text" name="author" id="author" value={formData.author} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10"/>
+                {formData.author && (
+                  <button type="button" onClick={() => handleClearInput('author')} className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <ClearIcon className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"/>
+                  </button>
+                )}
+              </div>
             </div>
             <div>
               <label htmlFor="genre" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tür</label>
-              <input type="text" name="genre" id="genre" value={formData.genre ?? ''} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="Örn: Roman, Bilim Kurgu"/>
+              <div className="relative mt-1">
+                <input type="text" name="genre" id="genre" value={formData.genre ?? ''} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" placeholder="Örn: Roman, Bilim Kurgu"/>
+                {formData.genre && (
+                  <button type="button" onClick={() => handleClearInput('genre')} className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <ClearIcon className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"/>
+                  </button>
+                )}
+              </div>
             </div>
             <div>
               <label htmlFor="isbn" className="block text-sm font-medium text-gray-700 dark:text-gray-300">ISBN</label>
-              <input type="text" name="isbn" id="isbn" value={formData.isbn ?? ''} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"/>
+              <div className="relative mt-1">
+                <input type="text" name="isbn" id="isbn" value={formData.isbn ?? ''} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10"/>
+                {formData.isbn && (
+                  <button type="button" onClick={() => handleClearInput('isbn')} className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <ClearIcon className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"/>
+                  </button>
+                )}
+              </div>
             </div>
             <div>
               <label htmlFor="summary" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Özet</label>
-              <textarea name="summary" id="summary" value={formData.summary ?? ''} onChange={handleChange} rows={4} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+              <div className="relative mt-1">
+                <textarea name="summary" id="summary" value={formData.summary ?? ''} onChange={handleChange} rows={4} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10"></textarea>
+                {formData.summary && (
+                  <button type="button" onClick={() => handleClearInput('summary')} className="absolute top-0 right-0 p-3">
+                    <ClearIcon className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"/>
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex justify-between items-center pt-4">
               <button
