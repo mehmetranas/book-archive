@@ -36,6 +36,9 @@ export const getBooks = async (client: SupabaseClient, page: number, pageSize: n
     const { data, error } = await client
       .from('books')
       .select('id, book_name, author, isbn, genre, added_by, created_at, updated_at, ai_status, wants_to_read')
+      // Order by wants_to_read first to bring marked items to the top; place NULLs last
+      .order('wants_to_read', { ascending: false, nullsFirst: false })
+      // Then order by most recent creation time
       .order('created_at', { ascending: false })
       .range(from, to);
     return { data, error };
