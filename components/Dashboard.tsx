@@ -8,7 +8,8 @@ import SummaryModal from './SummaryModal';
 import ConfirmationModal from './ConfirmationModal';
 import Toast from './Toast';
 import { useToast } from '../hooks/useToast';
-import { PlusIcon, LogoutIcon } from './icons';
+import { usePWAInstall } from '../hooks/usePWAInstall';
+import { PlusIcon, LogoutIcon, InstallIcon } from './icons';
 
 interface DashboardProps {
   supabaseClient: SupabaseClient;
@@ -31,6 +32,7 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
     isLoading: boolean
   }>({ summary: null, title: '', isbn: null, pageCount: null, subtitle: null, isLoading: false });
   const { message: toastMessage, isVisible: isToastVisible, showToast, hideToast } = useToast();
+  const { isInstallable, handleInstallClick } = usePWAInstall();
   const [currentPage, setCurrentPage] = useState(1);
   const [totalBooks, setTotalBooks] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
@@ -259,19 +261,28 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
               className="block w-full md:w-64 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
             />
             <button
-              onClick={onLogout}
-              title="Yapılandırmayı Sıfırla"
-              className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-            >
-              <LogoutIcon className="w-6 h-6 text-gray-500 dark:text-gray-400" />
-            </button>
-            <button
               onClick={() => handleOpenModal()}
               className="inline-flex items-center justify-center p-2 border border-transparent rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105"
               title="Yeni Kitap Ekle"
             >
               <PlusIcon className="w-6 h-6" />
             </button>
+            <button
+              onClick={onLogout}
+              title="Yapılandırmayı Sıfırla"
+              className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+            >
+              <LogoutIcon className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+            </button>
+            {isInstallable && (
+              <button
+                onClick={handleInstallClick}
+                title="Uygulamayı Yükle"
+                className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+              >
+                <InstallIcon className="w-6 h-6 text-indigo-500 dark:text-indigo-400" />
+              </button>
+            )}
           </div>
         </header>
 
