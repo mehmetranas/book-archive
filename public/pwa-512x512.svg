@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="64" fill="#4F46E5"/>
+  <rect x="64" y="64" width="384" height="384" rx="32" fill="#ffffff"/>
+  <rect x="128" y="128" width="256" height="32" rx="16" fill="#4F46E5"/>
+  <rect x="128" y="192" width="256" height="32" rx="16" fill="#4F46E5"/>
+  <rect x="128" y="256" width="256" height="32" rx="16" fill="#4F46E5"/>
+  <rect x="128" y="320" width="170.66666666666666" height="32" rx="16" fill="#4F46E5"/>
+  <text x="256" y="384" text-anchor="middle" font-family="Arial, sans-serif" font-size="64" fill="#4F46E5">📚</text>
+</svg>
+

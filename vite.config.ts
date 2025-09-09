@@ -8,27 +8,32 @@ export default defineConfig(({ mode }) => {
       plugins: [
         VitePWA({
           registerType: 'autoUpdate',
-          includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+          includeAssets: ['pwa-192x192.svg', 'pwa-512x512.svg'],
           manifest: {
-            name: 'Book Archive',
-            short_name: 'BookArchive',
-            description: 'An application to archive books.',
-            theme_color: '#ffffff',
+            name: 'Kitap Arşivi',
+            short_name: 'KitapArsivi',
+            description: 'Kitapları arşivlemek için bir uygulama',
+            start_url: '/',
+            display: 'standalone',
+            background_color: '#ffffff',
+            theme_color: '#4F46E5',
+            lang: 'tr',
+            scope: '/',
             icons: [
               {
-                src: 'pwa-192x192.png',
+                src: 'pwa-192x192.svg',
                 sizes: '192x192',
-                type: 'image/png',
+                type: 'image/svg+xml',
               },
               {
-                src: 'pwa-512x512.png',
+                src: 'pwa-512x512.svg',
                 sizes: '512x512',
-                type: 'image/png',
+                type: 'image/svg+xml',
               },
               {
-                src: 'pwa-512x512.png',
+                src: 'pwa-512x512.svg',
                 sizes: '512x512',
-                type: 'image/png',
+                type: 'image/svg+xml',
                 purpose: 'any maskable',
               },
             ],
