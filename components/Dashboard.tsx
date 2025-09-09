@@ -8,7 +8,16 @@ import SummaryModal from './SummaryModal';
 import ConfirmationModal from './ConfirmationModal';
 import Toast from './Toast';
 import { useToast } from '../hooks/useToast';
-import { PlusIcon, LogoutIcon } from './icons';
+import { PlusIcon, LogoutIcon, InstallIcon } from './icons';
+
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: Array<string>;
+  readonly userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed',
+    platform: string
+  }>;
+  prompt(): Promise<void>;
+}
 
 interface DashboardProps {
   supabaseClient: SupabaseClient;
@@ -37,6 +46,7 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
   const [bookToDelete, setBookToDelete] = useState<string | null>(null);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const booksPerPage = 10;
   const effectRan = useRef(false);
   const isInitialSearchMount = useRef(true);
@@ -72,6 +82,19 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // an empty dependency array ensures this runs only once.
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
 
   useEffect(() => {
     const timerId = setTimeout(() => {
@@ -245,6 +268,20 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
     setBookToDelete(null);
   };
 
+  const handleInstallClick = () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      installPrompt.userChoice.then(choiceResult => {
+        if (choiceResult.outcome === 'accepted') {
+          console.log('User accepted the A2HS prompt');
+        } else {
+          console.log('User dismissed the A2HS prompt');
+        }
+        setInstallPrompt(null);
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
@@ -258,6 +295,15 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="block w-full md:w-64 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
             />
+            {installPrompt && (
+              <button
+                onClick={handleInstallClick}
+                title="Uygulamayı Yükle"
+                className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+              >
+                <InstallIcon className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+              </button>
+            )}
             <button
               onClick={onLogout}
               title="Yapılandırmayı Sıfırla"

@@ -66,3 +66,9 @@ export const AiIcon: React.FC<IconProps> = ({ className }) => (
         <path d="M39.8071 17.4189C40.3789 16.1937 42.1211 16.1937 42.6929 17.4189L44.8475 22.0356C45.7965 24.069 47.431 25.7035 49.4644 26.6525L54.0811 28.8071C55.3063 29.3789 55.3063 31.1211 54.0811 31.6929L49.4644 33.8475C47.431 34.7965 45.7965 36.431 44.8475 38.4644L42.6929 43.0811C42.1211 44.3063 40.3789 44.3063 39.8071 43.0811L37.6525 38.4644C36.7035 36.431 35.069 34.7965 33.0356 33.8475L28.4189 31.6929C27.1937 31.1211 27.1937 29.3789 28.4189 28.8071L33.0356 26.6525C35.069 25.7035 36.7035 24.069 37.6525 22.0356L39.8071 17.4189Z" stroke="currentColor" strokeWidth="8.25" strokeLinejoin="round"/>
     </svg>
 );
+
+export const InstallIcon: React.FC<IconProps> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    </svg>
+);
