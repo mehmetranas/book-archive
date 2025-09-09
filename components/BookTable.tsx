@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Book } from '../types';
-import { EditIcon, DeleteIcon, AiIcon, InfoIcon, BookmarkIcon, BookmarkFilledIcon } from './icons';
+import { EditIcon, DeleteIcon, AiIcon, InfoIcon, BookmarkIcon, BookmarkFilledIcon, CopyIcon } from './icons';
 
 interface BookListProps {
   books: Book[];
@@ -9,6 +9,7 @@ interface BookListProps {
   onAiTrigger: (id: string) => void;
   onViewSummary: (id: string) => void;
   onToggleWantsToRead: (book: Book) => void;
+  onCopy: (bookName: string, author: string) => void;
 }
 
 const AiStatusBadge: React.FC<{ status: 'in_progress' | 'completed' | 'failed' }> = ({ status }) => {
@@ -42,7 +43,7 @@ const AiStatusBadge: React.FC<{ status: 'in_progress' | 'completed' | 'failed' }
   };
   
 
-const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onAiTrigger, onViewSummary, onToggleWantsToRead }) => {
+const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onAiTrigger, onViewSummary, onToggleWantsToRead, onCopy }) => {
 
   if(books.length === 0){
     return (
@@ -108,6 +109,9 @@ const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onAiTrigge
               </button>
               <button onClick={() => onEdit(book)} className="p-2 rounded-full text-gray-500 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:text-yellow-400 dark:hover:bg-gray-700 transition-colors" title="Düzenle">
                   <EditIcon className="w-5 h-5"/>
+              </button>
+              <button onClick={() => onCopy(book.book_name, book.author)} className="p-2 rounded-full text-gray-500 hover:text-green-600 hover:bg-green-100 dark:hover:text-green-400 dark:hover:bg-gray-700 transition-colors" title="Kopyala">
+                  <CopyIcon className="w-5 h-5"/>
               </button>
               <button onClick={() => book.id && onViewSummary(book.id)} className="p-2 rounded-full text-gray-500 hover:text-blue-600 hover:bg-blue-100 dark:hover:text-blue-400 dark:hover:bg-gray-700 transition-colors" title="Özeti Görüntüle">
                   <InfoIcon className="w-5 h-5"/>

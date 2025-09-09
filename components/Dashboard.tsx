@@ -6,6 +6,8 @@ import BookList from './BookTable';
 import BookForm from './BookForm';
 import SummaryModal from './SummaryModal';
 import ConfirmationModal from './ConfirmationModal';
+import Toast from './Toast';
+import { useToast } from '../hooks/useToast';
 import { PlusIcon, LogoutIcon } from './icons';
 
 interface DashboardProps {
@@ -28,6 +30,7 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
     subtitle: string | null,
     isLoading: boolean
   }>({ summary: null, title: '', isbn: null, pageCount: null, subtitle: null, isLoading: false });
+  const { message: toastMessage, isVisible: isToastVisible, showToast, hideToast } = useToast();
   const [currentPage, setCurrentPage] = useState(1);
   const [totalBooks, setTotalBooks] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
@@ -212,6 +215,16 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
     }
   };
 
+  const handleCopy = (bookName: string, author: string) => {
+    const textToCopy = `${bookName} - ${author}`;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      showToast('Panoya kopyalandı!');
+    }).catch(err => {
+      console.error('Kopyalama işlemi başarısız oldu: ', err);
+      showToast('Kopyalama başarısız oldu.');
+    });
+  };
+
   const handleDeleteRequest = (id: string) => {
     setBookToDelete(id);
     setIsConfirmationModalOpen(true);
@@ -281,6 +294,7 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
                 onAiTrigger={handleAiTrigger} 
                 onViewSummary={handleViewSummary}
                 onToggleWantsToRead={handleToggleWantsToRead}
+                onCopy={handleCopy}
               />
               <div className="mt-6 flex justify-between items-center">
                 <button
@@ -330,6 +344,7 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
         title="Kitabı Sil"
         message="Bu kitabı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz."
       />
+      <Toast message={toastMessage} isVisible={isToastVisible} onClose={hideToast} />
     </div>
   );
 };
