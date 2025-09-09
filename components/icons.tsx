@@ -72,3 +72,24 @@ export const InstallIcon: React.FC<IconProps> = ({ className }) => (
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
     </svg>
 );
+
+export const FilterIcon: React.FC<IconProps> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path fillRule="evenodd" d="M3.75 5.25A.75.75 0 014.5 4.5h15a.75.75 0 01.53 1.28l-5.03 5.03v6.11a.75.75 0 01-1.06.67l-3-1.5a.75.75 0 01-.42-.67v-4.61L4.03 5.78a.75.75 0 01-.28-.53z" clipRule="evenodd" />
+  </svg>
+);
+
+export const MoreIcon: React.FC<IconProps> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className} fill="currentColor">
+    <circle cx="12" cy="5" r="1.75" />
+    <circle cx="12" cy="12" r="1.75" />
+    <circle cx="12" cy="19" r="1.75" />
+  </svg>
+);
+
+export const FlipVerticalIcon: React.FC<IconProps> = ({ className }) => (
+  // Original vertical flip arrows icon
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className} fill="currentColor">
+    <path fill="currentColor" d="M16.175 10H7v9q0 .425-.288.713T6 20q-.425 0-.713-.288T5 19v-9q0-.825.588-1.413T7 8h9.175L13.3 5.125q-.3-.3-.313-.713t.288-.712q.3-.3.713-.3t.712.3l4.6 4.6q.15.15.213.325t.062.375q0 .2-.063.375T19.3 9.7l-4.625 4.625q-.3.3-.7.288t-.7-.313q-.275-.3-.288-.7t.288-.7l2.9-2.9Z" />
+  </svg>
+);

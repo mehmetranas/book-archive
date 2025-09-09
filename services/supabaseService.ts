@@ -19,7 +19,23 @@ export const initializeSupabase = (config: SupabaseConfig): SupabaseClient => {
   return window.supabase.createClient(config.supabase.url, config.supabase.anonKey);
 };
 
-export const getBooks = async (client: SupabaseClient, page: number, pageSize: number, searchTerm: string = ''): Promise<{ data: Book[] | null; error: PostgrestError | null }> => {
+// Filters to control listing behavior
+export type BookFilters = {
+  // If true, return only archived=true
+  archivedOnly?: boolean;
+  // When undefined or true and archivedOnly is false, exclude archived=true (show false or null)
+  excludeArchivedTrue?: boolean;
+  // If true, return only wants_to_read=true
+  wantsToReadOnly?: boolean;
+};
+
+export const getBooks = async (
+  client: SupabaseClient,
+  page: number,
+  pageSize: number,
+  searchTerm: string = '',
+  filters?: BookFilters
+): Promise<{ data: Book[] | null; error: PostgrestError | null }> => {
   if (searchTerm) {
     // Call the custom SQL function for searching
     const { data, error } = await client.rpc('search_books', {
@@ -27,15 +43,53 @@ export const getBooks = async (client: SupabaseClient, page: number, pageSize: n
       p_page_number: page,
       p_page_size: pageSize
     });
-    return { data, error: error as PostgrestError | null };
+    // Apply client-side filters for RPC results
+    const filtered = Array.isArray(data)
+      ? data.filter((b: Book) => {
+          // When both are selected, use OR: archived=true OR wants_to_read=true
+          if (filters?.archivedOnly && filters?.wantsToReadOnly) {
+            return b.archived === true || b.wants_to_read === true;
+          }
+          if (filters?.archivedOnly) {
+            return b.archived === true;
+          }
+          // Default behavior: exclude archived=true unless explicitly asking only archived
+          if (filters?.excludeArchivedTrue ?? true) {
+            if (b.archived === true) return false;
+          }
+          if (filters?.wantsToReadOnly) {
+            return b.wants_to_read === true;
+          }
+          return true;
+        })
+      : data;
+    return { data: filtered as Book[] | null, error: error as PostgrestError | null };
   } else {
     // Default fetch without search
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    const { data, error } = await client
+    let query = client
       .from('books')
-      .select('id, book_name, author, isbn, genre, added_by, created_at, updated_at, ai_status, wants_to_read')
+      .select('id, book_name, author, isbn, genre, added_by, created_at, updated_at, ai_status, wants_to_read, archived');
+
+    // Special case: both selected => OR
+    if (filters?.archivedOnly && filters?.wantsToReadOnly) {
+      query = query.or('archived.eq.true,wants_to_read.eq.true');
+    } else {
+      if (filters?.archivedOnly) {
+        query = query.eq('archived', true);
+      } else if (filters?.excludeArchivedTrue ?? true) {
+        // Show only archived=false OR archived IS NULL
+        query = query.or('archived.is.null,archived.eq.false');
+      }
+
+      if (filters?.wantsToReadOnly) {
+        query = query.eq('wants_to_read', true);
+      }
+    }
+
+    const { data, error } = await query
       // Order by wants_to_read first to bring marked items to the top; place NULLs last
       .order('wants_to_read', { ascending: false, nullsFirst: false })
       // Then order by most recent creation time
@@ -45,16 +99,37 @@ export const getBooks = async (client: SupabaseClient, page: number, pageSize: n
   }
 };
 
-export const getBooksCount = async (client: SupabaseClient, searchTerm: string = ''): Promise<{ count: number | null; error: PostgrestError | null }> => {
+export const getBooksCount = async (
+  client: SupabaseClient,
+  searchTerm: string = '',
+  filters?: BookFilters
+): Promise<{ count: number | null; error: PostgrestError | null }> => {
     if (searchTerm) {
         const { data, error } = await client.rpc('search_books_count', {
             p_search_term: searchTerm
         });
         return { count: data, error: error as PostgrestError | null };
     } else {
-        const { count, error } = await client
+        let countQuery = client
           .from('books')
           .select('*', { count: 'exact', head: true });
+
+        // Special case: both selected => OR
+        if (filters?.archivedOnly && filters?.wantsToReadOnly) {
+          countQuery = countQuery.or('archived.eq.true,wants_to_read.eq.true');
+        } else {
+          if (filters?.archivedOnly) {
+            countQuery = countQuery.eq('archived', true);
+          } else if (filters?.excludeArchivedTrue ?? true) {
+            countQuery = countQuery.or('archived.is.null,archived.eq.false');
+          }
+
+          if (filters?.wantsToReadOnly) {
+            countQuery = countQuery.eq('wants_to_read', true);
+          }
+        }
+
+        const { count, error } = await countQuery;
         return { count, error };
     }
 };

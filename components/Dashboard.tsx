@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Book } from '../types';
-import { getBooks, addBook, updateBook, deleteBook, getBookSummary, getBooksCount } from '../services/supabaseService';
+import { getBooks, addBook, updateBook, deleteBook, getBookSummary, getBooksCount, type BookFilters } from '../services/supabaseService';
 import BookList from './BookTable';
 import BookForm from './BookForm';
 import SummaryModal from './SummaryModal';
 import ConfirmationModal from './ConfirmationModal';
 import Toast from './Toast';
 import { useToast } from '../hooks/useToast';
-import { PlusIcon, LogoutIcon, InstallIcon } from './icons';
+import { PlusIcon, LogoutIcon, InstallIcon, FilterIcon } from './icons';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: Array<string>;
@@ -47,6 +47,9 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
   const [bookToDelete, setBookToDelete] = useState<string | null>(null);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [filterArchivedOnly, setFilterArchivedOnly] = useState(false);
+  const [filterWantsOnly, setFilterWantsOnly] = useState(false);
   const booksPerPage = 10;
   const effectRan = useRef(false);
   const isInitialSearchMount = useRef(true);
@@ -55,14 +58,20 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
   const fetchBooks = useCallback(async (page: number, search: string) => {
     setIsLoading(true);
     setError(null);
-    const { data, error } = await getBooks(supabaseClient, page, booksPerPage, search);
+    const filters: BookFilters = {
+      archivedOnly: filterArchivedOnly,
+      // Default: exclude archived true when not explicitly archivedOnly
+      excludeArchivedTrue: !filterArchivedOnly,
+      wantsToReadOnly: filterWantsOnly,
+    };
+    const { data, error } = await getBooks(supabaseClient, page, booksPerPage, search, filters);
     if (error) {
       setError(`Kitaplar alınamadı: ${error.message}`);
     } else if (data) {
       setBooks(data);
     }
 
-    const { count, error: countError } = await getBooksCount(supabaseClient, search);
+    const { count, error: countError } = await getBooksCount(supabaseClient, search, filters);
     if (countError) {
         setError(`Toplam kitap sayısı alınamadı: ${countError.message}`);
     } else if (count !== null) {
@@ -70,7 +79,7 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
     }
 
     setIsLoading(false);
-  }, [supabaseClient]);
+  }, [supabaseClient, filterArchivedOnly, filterWantsOnly]);
 
   useEffect(() => {
     if (effectRan.current === false) {
@@ -285,7 +294,7 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <header className="flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b border-gray-200 dark:border-gray-700 gap-4">
+        <header className="sticky top-0 z-30 bg-gray-50 dark:bg-gray-900 flex flex-col md:flex-row justify-between items-center mb-6 pb-4 border-b border-gray-200 dark:border-gray-700 gap-4">
           <h1 className="text-3xl font-bold tracking-tight">Kitaplık</h1>
           <div className="flex items-center space-x-4 w-full md:w-auto">
             <input
@@ -305,11 +314,11 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
               </button>
             )}
             <button
-              onClick={onLogout}
-              title="Yapılandırmayı Sıfırla"
+              onClick={() => setIsFilterModalOpen(true)}
+              title="Filtrele"
               className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition"
             >
-              <LogoutIcon className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+              <FilterIcon className="w-6 h-6 text-gray-500 dark:text-gray-400" />
             </button>
             <button
               onClick={() => handleOpenModal()}
@@ -341,6 +350,25 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
                 onViewSummary={handleViewSummary}
                 onToggleWantsToRead={handleToggleWantsToRead}
                 onCopy={handleCopy}
+                onArchiveToggle={async (id, archived) => {
+                  const previous = [...books];
+                  // Remove from current list if it no longer matches active filter
+                  // - Archiving while not in "archived" view → remove
+                  // - Unarchiving while in "archived" view → remove
+                  const willRemove = (archived && !filterArchivedOnly) || (!archived && filterArchivedOnly);
+                  if (willRemove) {
+                    setBooks(books.filter(b => b.id !== id));
+                  } else {
+                    setBooks(books.map(b => b.id === id ? { ...b, archived } : b));
+                  }
+                  const { error } = await updateBook(supabaseClient, id, { archived } as Partial<Book>);
+                  if (error) {
+                    setBooks(previous);
+                    alert(`Arşiv durumu güncellenemedi: ${error.message}`);
+                  } else {
+                    showToast(archived ? 'Kitap arşivlendi' : 'Arşivden çıkarıldı');
+                  }
+                }}
               />
               <div className="mt-6 flex justify-between items-center">
                 <button
@@ -390,6 +418,70 @@ const Dashboard: React.FC<DashboardProps> = ({ supabaseClient, onLogout }) => {
         title="Kitabı Sil"
         message="Bu kitabı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz."
       />
+      {isFilterModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black bg-opacity-40" onClick={() => setIsFilterModalOpen(false)} />
+          <div className="relative w-full max-w-sm mx-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-5">
+            <h3 className="text-lg font-semibold mb-4">Filtreler</h3>
+            <div className="space-y-3">
+              <label className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  className="form-checkbox h-4 w-4 text-indigo-600"
+                  checked={filterArchivedOnly}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setFilterArchivedOnly(checked);
+                  }}
+                />
+                <span>Arşivlenenler</span>
+              </label>
+              <label className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  className="form-checkbox h-4 w-4 text-indigo-600"
+                  checked={filterWantsOnly}
+                  onChange={(e) => setFilterWantsOnly(e.target.checked)}
+                />
+                <span>Etiketlenenler</span>
+              </label>
+            </div>
+            <div className="mt-6 flex justify-between">
+              <button
+                onClick={() => {
+                  // Clear sets default behavior: exclude archived true, and no wants filter
+                  setFilterArchivedOnly(false);
+                  setFilterWantsOnly(false);
+                  setIsFilterModalOpen(false);
+                  setCurrentPage(1);
+                  fetchBooks(1, debouncedSearchTerm);
+                }}
+                className="px-4 py-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+              >
+                Temizle
+              </button>
+              <div className="space-x-3">
+                <button
+                  onClick={() => setIsFilterModalOpen(false)}
+                  className="px-4 py-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={() => {
+                    setIsFilterModalOpen(false);
+                    setCurrentPage(1);
+                    fetchBooks(1, debouncedSearchTerm);
+                  }}
+                  className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                >
+                  Uygula
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <Toast message={toastMessage} isVisible={isToastVisible} onClose={hideToast} />
     </div>
   );
