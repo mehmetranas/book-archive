@@ -1,79 +1,171 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# BookVault
 
-# Getting Started
+React Native CLI (0.76.5) ile TypeScript kullanılarak oluşturulmuş bir kitap yönetim uygulaması.
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+## 📦 Kurulu Paketler
 
-## Step 1: Start the Metro Server
+### Styling
+- **nativewind** (v4) - Tailwind CSS for React Native
+- **tailwindcss** - Utility-first CSS framework
 
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
+### Navigation
+- **@react-navigation/native** (v6) - Navigation framework
+- **@react-navigation/bottom-tabs** - Bottom tab navigator
+- **react-native-screens** - Native navigation primitives
+- **react-native-safe-area-context** - Safe area handling
 
-To start Metro, run the following command from the _root_ of your React Native project:
+### Localization (i18n)
+- **i18next** - Internationalization framework
+- **react-i18next** - React bindings for i18next
+- **react-native-localize** - Device locale detection
 
+### Networking
+- **axios** - HTTP client
+- **@tanstack/react-query** (TanStack Query) - Data fetching and caching
+
+### Backend & Authentication
+- **pocketbase** - Backend as a Service (BaaS)
+- **@react-native-async-storage/async-storage** - Persistent storage for auth tokens
+
+### Icons
+- **react-native-vector-icons** - Icon library (Ionicons, MaterialIcons, FontAwesome)
+
+## 🚀 Başlangıç
+
+### iOS
+
+1. CocoaPods bağımlılıklarını yükleyin:
 ```bash
-# using npm
-npm start
-
-# OR using Yarn
-yarn start
+cd ios
+bundle install
+bundle exec pod install
+cd ..
 ```
 
-## Step 2: Start your Application
-
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
-
-### For Android
-
+2. Uygulamayı çalıştırın:
 ```bash
-# using npm
-npm run android
-
-# OR using Yarn
-yarn android
+npx react-native run-ios
 ```
 
-### For iOS
+### Android
 
 ```bash
-# using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+npx react-native run-android
 ```
 
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
+## 📁 Proje Yapısı
 
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
+```
+BookVault/
+├── src/
+│   ├── config/
+│   │   └── i18n.ts          # i18n yapılandırması (otomatik dil algılama)
+│   ├── context/
+│   │   └── AuthContext.tsx  # Auth context provider
+│   ├── locales/
+│   │   ├── en.json          # İngilizce çeviriler
+│   │   └── tr.json          # Türkçe çeviriler
+│   ├── navigation/
+│   │   ├── AuthNavigator.tsx        # Auth navigation (Login/Register)
+│   │   └── BottomTabNavigator.tsx   # Tab navigation yapısı
+│   ├── screens/
+│   │   ├── auth/
+│   │   │   ├── LoginScreen.tsx      # Giriş ekranı
+│   │   │   └── RegisterScreen.tsx   # Kayıt ekranı
+│   │   ├── LibraryScreen.tsx        # Kütüphane ekranı
+│   │   ├── SearchScreen.tsx         # Arama ekranı
+│   │   └── SettingsScreen.tsx       # Ayarlar ekranı
+│   └── services/
+│       └── pocketbase.ts    # PocketBase service (AsyncAuthStore)
+├── App.tsx                  # Ana uygulama bileşeni
+├── global.css              # NativeWind global styles
+└── tailwind.config.js      # Tailwind yapılandırması
+```
 
-## Step 3: Modifying your App
+## 🌐 Dil Desteği
 
-Now that you have successfully run the app, let's modify it.
+Uygulama açılışında otomatik olarak telefonun dilini algılar ve desteklenen diller arasında (TR/EN) uygun olanı seçer.
 
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
+Desteklenen diller:
+- 🇹🇷 Türkçe
+- 🇬🇧 English
 
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
+## 🔐 Authentication (PocketBase)
 
-## Congratulations! :tada:
+PocketBase backend entegrasyonu ile kullanıcı kimlik doğrulaması:
 
-You've successfully run and modified your React Native App. :partying_face:
+- **AsyncAuthStore**: Token'lar AsyncStorage'da saklanır
+- **Auto-login**: Uygulama açılışında otomatik giriş
+- **Login/Register**: Kullanıcı dostu giriş ve kayıt ekranları
+- **Validation**: Email ve şifre doğrulama
+- **Error Handling**: i18n destekli hata mesajları
 
-### Now what?
+Backend URL: `https://book.api.cinevault.space`
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
+## 🎨 Styling
 
-# Troubleshooting
+NativeWind v4 kullanılarak Tailwind CSS class'ları ile styling yapılmıştır:
 
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+```tsx
+<View className="flex-1 items-center justify-center bg-white dark:bg-gray-900">
+  <Text className="text-2xl font-bold text-gray-900 dark:text-white">
+    Merhaba Dünya
+  </Text>
+</View>
+```
 
-# Learn More
+## 🧭 Navigation
 
-To learn more about React Native, take a look at the following resources:
+Bottom Tabs yapısı:
+- **Library** - Kitap kütüphanesi
+- **Search** - Kitap arama
+- **Settings** - Uygulama ayarları
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+Auth Navigation:
+- **Login** - Kullanıcı girişi
+- **Register** - Yeni kullanıcı kaydı
+
+## 📱 Özellikler
+
+- ✅ TypeScript desteği
+- ✅ NativeWind (Tailwind CSS) styling
+- ✅ Bottom tab navigation
+- ✅ PocketBase authentication
+- ✅ Persistent auth with AsyncStorage
+- ✅ Login/Register screens
+- ✅ Çoklu dil desteği (i18n)
+- ✅ Otomatik dil algılama
+- ✅ TanStack Query (React Query) entegrasyonu
+- ✅ Axios HTTP client
+- ✅ Vector icons (iOS & Android)
+- ✅ Dark mode desteği
+
+## 🔧 Yapılandırma Dosyaları
+
+- `babel.config.js` - NativeWind plugin
+- `metro.config.js` - NativeWind CSS transformer
+- `tailwind.config.js` - Tailwind CSS yapılandırması
+- `tsconfig.json` - TypeScript yapılandırması
+- `ios/BookVault/Info.plist` - iOS font yapılandırması
+- `android/app/build.gradle` - Android font yapılandırması
+
+## 📝 Notlar
+
+- NativeWind v4 kullanılmaktadır
+- iOS için vector icons Info.plist'e eklenmiştir
+- Android için vector icons build.gradle'a eklenmiştir
+- i18n otomatik dil algılama ile yapılandırılmıştır
+- TanStack Query 5 dakika stale time ile yapılandırılmıştır
+- **Not:** react-native-reanimated React Native 0.76.5 ile uyumsuzluk nedeniyle dahil edilmemiştir
+
+## 🛠️ Geliştirme
+
+Metro bundler'ı başlatmak için:
+```bash
+npx react-native start
+```
+
+Cache'i temizlemek için:
+```bash
+npx react-native start --reset-cache
+```

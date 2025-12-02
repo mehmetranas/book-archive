@@ -1,0 +1,115 @@
+import React, {
+    createContext,
+    useContext,
+    useEffect,
+    useState,
+    ReactNode,
+} from 'react';
+import { pb, User } from '../services/pocketbase';
+
+type AuthContextType = {
+    user: User | null;
+    isLoading: boolean;
+    isAuthenticated: boolean;
+    login: (email: string, password: string) => Promise<void>;
+    register: (email: string, password: string, passwordConfirm: string, name?: string) => Promise<void>;
+    logout: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within AuthProvider');
+    }
+    return context;
+};
+
+type AuthProviderProps = {
+    children: ReactNode;
+};
+
+export const AuthProvider = ({ children }: AuthProviderProps) => {
+    const [user, setUser] = useState<User | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        // Initialize auth state from stored token
+        const initAuth = async () => {
+            try {
+                if (pb.authStore.isValid && pb.authStore.model) {
+                    setUser(pb.authStore.model as User);
+                }
+            } catch (error) {
+                console.error('Auth initialization error:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        initAuth();
+
+        // Listen to auth state changes
+        const unsubscribe = pb.authStore.onChange((token, model) => {
+            setUser(model as User | null);
+        });
+
+        return () => {
+            unsubscribe();
+        };
+    }, []);
+
+    const login = async (email: string, password: string) => {
+        try {
+            const authData = await pb
+                .collection('users')
+                .authWithPassword(email, password);
+            setUser(authData.record as User);
+        } catch (error: any) {
+            throw new Error(error?.message || 'Login failed');
+        }
+    };
+
+    const register = async (
+        email: string,
+        password: string,
+        passwordConfirm: string,
+        name?: string,
+    ) => {
+        try {
+            const data: any = {
+                email,
+                password,
+                passwordConfirm,
+            };
+
+            if (name) {
+                data.name = name;
+            }
+
+            await pb.collection('users').create(data);
+
+            // Auto login after registration
+            await login(email, password);
+        } catch (error: any) {
+            throw new Error(error?.message || 'Registration failed');
+        }
+    };
+
+    const logout = async () => {
+        pb.authStore.clear();
+        setUser(null);
+    };
+
+    const value: AuthContextType = {
+        user,
+        isLoading,
+        isAuthenticated: !!user,
+        login,
+        register,
+        logout,
+    };
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};

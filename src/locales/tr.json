@@ -1,0 +1,51 @@
+{
+    "app": {
+        "name": "BookVault"
+    },
+    "tabs": {
+        "library": "Kütüphane",
+        "search": "Ara",
+        "settings": "Ayarlar"
+    },
+    "library": {
+        "title": "Kütüphanem",
+        "empty": "Henüz kitap yok",
+        "emptyDescription": "Kütüphanene kitap eklemeye başla"
+    },
+    "search": {
+        "title": "Kitap Ara",
+        "placeholder": "Kitap ara...",
+        "noResults": "Sonuç bulunamadı"
+    },
+    "settings": {
+        "title": "Ayarlar",
+        "language": "Dil",
+        "theme": "Tema",
+        "about": "Hakkında",
+        "logout": "Çıkış Yap"
+    },
+    "auth": {
+        "login": "Giriş Yap",
+        "register": "Kayıt Ol",
+        "email": "E-posta",
+        "password": "Şifre",
+        "passwordConfirm": "Şifre Tekrar",
+        "name": "İsim (İsteğe Bağlı)",
+        "loginButton": "Giriş Yap",
+        "registerButton": "Kayıt Ol",
+        "noAccount": "Hesabınız yok mu?",
+        "haveAccount": "Zaten hesabınız var mı?",
+        "loginHere": "Giriş yapın",
+        "registerHere": "Kayıt olun",
+        "errors": {
+            "emailRequired": "E-posta gereklidir",
+            "passwordRequired": "Şifre gereklidir",
+            "passwordConfirmRequired": "Şifre tekrarı gereklidir",
+            "passwordMismatch": "Şifreler eşleşmiyor",
+            "invalidEmail": "Geçersiz e-posta formatı",
+            "loginFailed": "Giriş başarısız. Lütfen bilgilerinizi kontrol edin.",
+            "registerFailed": "Kayıt başarısız. Lütfen tekrar deneyin.",
+            "networkError": "Ağ hatası. Lütfen bağlantınızı kontrol edin."
+        }
+    }
+}

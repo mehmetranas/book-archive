@@ -1,0 +1,51 @@
+{
+    "app": {
+        "name": "BookVault"
+    },
+    "tabs": {
+        "library": "Library",
+        "search": "Search",
+        "settings": "Settings"
+    },
+    "library": {
+        "title": "My Library",
+        "empty": "No books yet",
+        "emptyDescription": "Start adding books to your library"
+    },
+    "search": {
+        "title": "Search Books",
+        "placeholder": "Search for books...",
+        "noResults": "No results found"
+    },
+    "settings": {
+        "title": "Settings",
+        "language": "Language",
+        "theme": "Theme",
+        "about": "About",
+        "logout": "Logout"
+    },
+    "auth": {
+        "login": "Login",
+        "register": "Register",
+        "email": "Email",
+        "password": "Password",
+        "passwordConfirm": "Confirm Password",
+        "name": "Name (Optional)",
+        "loginButton": "Sign In",
+        "registerButton": "Sign Up",
+        "noAccount": "Don't have an account?",
+        "haveAccount": "Already have an account?",
+        "loginHere": "Login here",
+        "registerHere": "Register here",
+        "errors": {
+            "emailRequired": "Email is required",
+            "passwordRequired": "Password is required",
+            "passwordConfirmRequired": "Password confirmation is required",
+            "passwordMismatch": "Passwords do not match",
+            "invalidEmail": "Invalid email format",
+            "loginFailed": "Login failed. Please check your credentials.",
+            "registerFailed": "Registration failed. Please try again.",
+            "networkError": "Network error. Please check your connection."
+        }
+    }
+}
