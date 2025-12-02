@@ -15,7 +15,16 @@
     "search": {
         "title": "Kitap Ara",
         "placeholder": "Kitap ara...",
-        "noResults": "Sonuç bulunamadı"
+        "noResults": "Sonuç bulunamadı",
+        "bookAdded": "Kitap kütüphanenize eklendi",
+        "addFailed": "Kitap eklenirken hata oluştu",
+        "unknownAuthor": "Bilinmeyen Yazar",
+        "error": "Arama sırasında bir hata oluştu"
+    },
+    "common": {
+        "success": "Başarılı",
+        "error": "Hata",
+        "add": "Ekle"
     },
     "settings": {
         "title": "Ayarlar",

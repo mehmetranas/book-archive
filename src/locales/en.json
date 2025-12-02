@@ -15,7 +15,16 @@
     "search": {
         "title": "Search Books",
         "placeholder": "Search for books...",
-        "noResults": "No results found"
+        "noResults": "No results found",
+        "bookAdded": "Book added to your library",
+        "addFailed": "Failed to add book",
+        "unknownAuthor": "Unknown Author",
+        "error": "An error occurred while searching"
+    },
+    "common": {
+        "success": "Success",
+        "error": "Error",
+        "add": "Add"
     },
     "settings": {
         "title": "Settings",
