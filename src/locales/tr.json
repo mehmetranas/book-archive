@@ -24,7 +24,8 @@
     "common": {
         "success": "Başarılı",
         "error": "Hata",
-        "add": "Ekle"
+        "add": "Ekle",
+        "retry": "Tekrar Dene"
     },
     "settings": {
         "title": "Ayarlar",

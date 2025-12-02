@@ -24,7 +24,8 @@
     "common": {
         "success": "Success",
         "error": "Error",
-        "add": "Add"
+        "add": "Add",
+        "retry": "Retry"
     },
     "settings": {
         "title": "Settings",

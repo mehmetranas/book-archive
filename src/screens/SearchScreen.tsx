@@ -17,7 +17,10 @@ export const SearchScreen = () => {
             const volumeInfo = book.volumeInfo;
 
             // Extract high quality image if available, otherwise fallback
-            const coverUrl = volumeInfo.imageLinks?.thumbnail || volumeInfo.imageLinks?.smallThumbnail || '';
+            let coverUrl = volumeInfo.imageLinks?.thumbnail || volumeInfo.imageLinks?.smallThumbnail || '';
+            if (coverUrl.startsWith('http://')) {
+                coverUrl = coverUrl.replace('http://', 'https://');
+            }
 
             const data = {
                 title: volumeInfo.title,
