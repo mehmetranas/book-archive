@@ -7,10 +7,13 @@ import { pb } from '../services/pocketbase';
 import { useMutation } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 export const SearchScreen = () => {
     const { t, i18n } = useTranslation();
     const [query, setQuery] = useState('');
     const { data: books, isLoading, error } = useGoogleBooks(query);
+    const insets = useSafeAreaInsets();
 
     const addBookMutation = useMutation({
         mutationFn: async (book: GoogleBookItem) => {
@@ -30,6 +33,7 @@ export const SearchScreen = () => {
                 language_code: i18n.language, // 'tr' or 'en'
                 user: pb.authStore.record?.id,
                 status: 'want_to_read',
+                enrichment_status: 'pending',
             };
 
             return await pb.collection('books').create(data);
@@ -88,7 +92,10 @@ export const SearchScreen = () => {
     };
 
     return (
-        <View className="flex-1 bg-gray-50 dark:bg-gray-900">
+        <View
+            className="flex-1 bg-gray-50 dark:bg-gray-900"
+            style={{ paddingTop: insets.top }}
+        >
             <View className="p-4 bg-white dark:bg-gray-800 shadow-sm z-10">
                 <Text className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
                     {t('search.title')}

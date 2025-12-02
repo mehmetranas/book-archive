@@ -57,5 +57,10 @@
             "registerFailed": "Kayıt başarısız. Lütfen tekrar deneyin.",
             "networkError": "Ağ hatası. Lütfen bağlantınızı kontrol edin."
         }
+    },
+    "status": {
+        "want_to_read": "Okunacak",
+        "reading": "Okunuyor",
+        "read": "Tamamlandı"
     }
 }

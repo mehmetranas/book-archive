@@ -57,5 +57,10 @@
             "registerFailed": "Registration failed. Please try again.",
             "networkError": "Network error. Please check your connection."
         }
+    },
+    "status": {
+        "want_to_read": "Want to Read",
+        "reading": "Reading",
+        "read": "Read"
     }
 }

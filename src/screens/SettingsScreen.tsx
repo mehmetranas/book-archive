@@ -3,9 +3,12 @@ import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 export const SettingsScreen = () => {
     const { t, i18n } = useTranslation();
     const { logout, user } = useAuth();
+    const insets = useSafeAreaInsets();
 
     const handleLogout = () => {
         Alert.alert(
@@ -28,7 +31,10 @@ export const SettingsScreen = () => {
     };
 
     return (
-        <ScrollView className="flex-1 bg-white dark:bg-gray-900">
+        <ScrollView
+            className="flex-1 bg-white dark:bg-gray-900"
+            style={{ paddingTop: insets.top }}
+        >
             <View className="p-4">
                 <Text className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
                     {t('settings.title')}

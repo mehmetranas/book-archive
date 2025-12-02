@@ -6,7 +6,8 @@ import { ActivityIndicator, View } from 'react-native';
 import './global.css';
 import './src/config/i18n';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
-import { BottomTabNavigator } from './src/navigation/BottomTabNavigator';
+
+import { MainNavigator } from './src/navigation/MainNavigator';
 import { AuthNavigator } from './src/navigation/AuthNavigator';
 
 // TanStack Query client
@@ -31,7 +32,7 @@ const AppNavigator = () => {
         );
     }
 
-    return isAuthenticated ? <BottomTabNavigator /> : <AuthNavigator />;
+    return isAuthenticated ? <MainNavigator /> : <AuthNavigator />;
 };
 
 function App(): React.JSX.Element {
