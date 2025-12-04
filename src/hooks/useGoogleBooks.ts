@@ -12,6 +12,10 @@ export interface GoogleBookVolumeInfo {
     };
     description?: string;
     publishedDate?: string;
+    industryIdentifiers?: Array<{
+        type: string;
+        identifier: string;
+    }>;
 }
 
 export interface GoogleBookItem {

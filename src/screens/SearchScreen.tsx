@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, ActivityIndicator, TouchableOpacity, Alert, Image } from 'react-native';
+import { View, Text, TextInput, ActivityIndicator, TouchableOpacity, Alert, Image, Modal } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { FlashList } from '@shopify/flash-list';
 import { useGoogleBooks, GoogleBookItem } from '../hooks/useGoogleBooks';
 import { pb } from '../services/pocketbase';
-import { useMutation } from '@tanstack/react-query';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const SearchScreen = () => {
@@ -14,6 +14,11 @@ export const SearchScreen = () => {
     const [query, setQuery] = useState('');
     const { data: books, isLoading, error } = useGoogleBooks(query);
     const insets = useSafeAreaInsets();
+    const queryClient = useQueryClient();
+
+    const [isModalVisible, setIsModalVisible] = useState(false);
+    const [manualTitle, setManualTitle] = useState('');
+    const [manualAuthor, setManualAuthor] = useState('');
 
     const addBookMutation = useMutation({
         mutationFn: async (book: GoogleBookItem) => {
@@ -25,6 +30,11 @@ export const SearchScreen = () => {
                 coverUrl = coverUrl.replace('http://', 'https://');
             }
 
+            // Extract ISBN
+            const isbnIdentifier = volumeInfo.industryIdentifiers?.find((id: any) => id.type === 'ISBN_13')
+                || volumeInfo.industryIdentifiers?.find((id: any) => id.type === 'ISBN_10');
+            const isbn = isbnIdentifier?.identifier || '';
+
             const data = {
                 title: volumeInfo.title,
                 authors: volumeInfo.authors || [],
@@ -34,11 +44,13 @@ export const SearchScreen = () => {
                 user: pb.authStore.record?.id,
                 status: 'want_to_read',
                 enrichment_status: 'pending',
+                isbn: isbn,
             };
 
             return await pb.collection('books').create(data);
         },
         onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['books'] });
             Alert.alert(t('common.success'), t('search.bookAdded'));
         },
         onError: (err: any) => {
@@ -48,6 +60,40 @@ export const SearchScreen = () => {
             Alert.alert(t('common.error'), `${errorMessage}\n${validationErrors}`);
         },
     });
+
+    const addManualBookMutation = useMutation({
+        mutationFn: async () => {
+            const data = {
+                title: manualTitle,
+                authors: manualAuthor ? [manualAuthor] : [],
+                cover_url: '',
+                status: 'want_to_read',
+                enrichment_status: 'pending',
+                language_code: i18n.language,
+                user: pb.authStore.record?.id,
+            };
+            return await pb.collection('books').create(data);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['books'] });
+            setIsModalVisible(false);
+            setManualTitle('');
+            setManualAuthor('');
+            Alert.alert(t('common.success'), t('library.manualAddSuccess', 'Kitap eklendi, yapay zeka detayları araştırıyor...'));
+        },
+        onError: (err: any) => {
+            console.error('Manual add error:', err);
+            Alert.alert(t('common.error'), t('library.manualAddError', 'Kitap eklenirken bir hata oluştu.'));
+        }
+    });
+
+    const handleManualAdd = () => {
+        if (!manualTitle.trim()) {
+            Alert.alert(t('common.warning'), t('library.titleRequired', 'Kitap adı zorunludur.'));
+            return;
+        }
+        addManualBookMutation.mutate();
+    };
 
     const renderItem = ({ item }: { item: GoogleBookItem }) => {
         const { volumeInfo } = item;
@@ -97,9 +143,18 @@ export const SearchScreen = () => {
             style={{ paddingTop: insets.top }}
         >
             <View className="p-4 bg-white dark:bg-gray-800 shadow-sm z-10">
-                <Text className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                    {t('search.title')}
-                </Text>
+                <View className="flex-row items-center justify-between mb-4">
+                    <Text className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {t('search.title')}
+                    </Text>
+                    <TouchableOpacity
+                        onPress={() => setIsModalVisible(true)}
+                        className="bg-blue-600 p-2 rounded-full"
+                    >
+                        <Icon name="plus" size={24} color="white" />
+                    </TouchableOpacity>
+                </View>
+
                 <View className="flex-row items-center bg-gray-100 dark:bg-gray-700 rounded-xl px-4 border border-gray-200 dark:border-gray-600">
                     <Icon name="magnify" size={20} color="#9CA3AF" />
                     <TextInput
@@ -109,6 +164,8 @@ export const SearchScreen = () => {
                         value={query}
                         onChangeText={setQuery}
                         autoCapitalize="none"
+                        autoCorrect={false}
+                        autoComplete="off"
                     />
                     {query.length > 0 && (
                         <TouchableOpacity onPress={() => setQuery('')}>
@@ -131,7 +188,7 @@ export const SearchScreen = () => {
                 </View>
             ) : (
                 <FlashList<GoogleBookItem>
-                    data={books}
+                    data={books || []}
                     renderItem={renderItem}
                     estimatedItemSize={120}
                     contentContainerStyle={{ padding: 16 }}
@@ -146,6 +203,70 @@ export const SearchScreen = () => {
                     }
                 />
             )}
+
+            {/* Manual Add Modal */}
+            <Modal
+                visible={isModalVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setIsModalVisible(false)}
+            >
+                <View className="flex-1 justify-center items-center bg-black/50">
+                    <View className="bg-white dark:bg-gray-800 w-11/12 rounded-xl p-6 shadow-xl">
+                        <Text className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                            {t('library.manualAddTitle', 'Manuel Kitap Ekle')}
+                        </Text>
+
+                        <Text className="text-gray-700 dark:text-gray-300 mb-1 font-medium">
+                            {t('library.bookTitle', 'Kitap Adı')} *
+                        </Text>
+                        <TextInput
+                            className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 mb-4 text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700"
+                            placeholder={t('library.titlePlaceholder', 'Örn: Sefiller')}
+                            placeholderTextColor="#9CA3AF"
+                            value={manualTitle}
+                            onChangeText={setManualTitle}
+                            autoCorrect={false}
+                        />
+
+                        <Text className="text-gray-700 dark:text-gray-300 mb-1 font-medium">
+                            {t('library.authorName', 'Yazar Adı')}
+                        </Text>
+                        <TextInput
+                            className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 mb-6 text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700"
+                            placeholder={t('library.authorPlaceholder', 'Örn: Victor Hugo')}
+                            placeholderTextColor="#9CA3AF"
+                            value={manualAuthor}
+                            onChangeText={setManualAuthor}
+                            autoCorrect={false}
+                        />
+
+                        <View className="flex-row justify-end space-x-3">
+                            <TouchableOpacity
+                                onPress={() => setIsModalVisible(false)}
+                                className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 mr-2"
+                            >
+                                <Text className="text-gray-700 dark:text-gray-300 font-medium">
+                                    {t('common.cancel', 'İptal')}
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={handleManualAdd}
+                                className="px-4 py-2 rounded-lg bg-blue-600"
+                                disabled={addManualBookMutation.isPending}
+                            >
+                                {addManualBookMutation.isPending ? (
+                                    <ActivityIndicator size="small" color="white" />
+                                ) : (
+                                    <Text className="text-white font-medium">
+                                        {t('common.save', 'Kaydet')}
+                                    </Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };

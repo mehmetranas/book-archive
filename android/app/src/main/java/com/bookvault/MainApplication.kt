@@ -35,6 +35,10 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    // Force Locale to English to avoid Turkish I problem in libraries
+    // This fixes issues where libraries use toLowerCase()/toUpperCase() without locale
+    java.util.Locale.setDefault(java.util.Locale.US)
+
     SoLoader.init(this, OpenSourceMergedSoMapping)
     if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
       // If you opted-in for the New Architecture, we load the native entry point for this app.

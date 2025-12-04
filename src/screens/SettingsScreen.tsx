@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 
@@ -54,12 +55,49 @@ export const SettingsScreen = () => {
 
                 {/* Language */}
                 <View className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">
-                    <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
                         {t('settings.language')}
                     </Text>
-                    <Text className="text-gray-600 dark:text-gray-400">
-                        Current: {i18n.language.toUpperCase()}
-                    </Text>
+                    <View className="flex-row space-x-3">
+                        <TouchableOpacity
+                            onPress={async () => {
+                                await i18n.changeLanguage('en');
+                                await AsyncStorage.setItem('user-language', 'en');
+                            }}
+                            className={`flex-1 py-2 rounded-lg border ${i18n.language === 'en'
+                                ? 'bg-blue-600 border-blue-600'
+                                : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600'
+                                }`}
+                        >
+                            <Text
+                                className={`text-center font-medium ${i18n.language === 'en'
+                                    ? 'text-white'
+                                    : 'text-gray-700 dark:text-gray-300'
+                                    }`}
+                            >
+                                English
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={async () => {
+                                await i18n.changeLanguage('tr');
+                                await AsyncStorage.setItem('user-language', 'tr');
+                            }}
+                            className={`flex-1 py-2 rounded-lg border ${i18n.language === 'tr'
+                                ? 'bg-blue-600 border-blue-600'
+                                : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600'
+                                }`}
+                        >
+                            <Text
+                                className={`text-center font-medium ${i18n.language === 'tr'
+                                    ? 'text-white'
+                                    : 'text-gray-700 dark:text-gray-300'
+                                    }`}
+                            >
+                                Türkçe
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* Theme */}

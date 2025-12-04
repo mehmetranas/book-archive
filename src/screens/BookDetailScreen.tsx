@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl } from 'react-native';
+
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { pb } from '../services/pocketbase';
 import { Book } from './LibraryScreen';
+import { AIStatusBadge } from '../components/AIStatusBadge';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,7 +21,10 @@ export const BookDetailScreen = () => {
 
     const [isEditing, setIsEditing] = useState(false);
     const [editedTitle, setEditedTitle] = useState('');
+    const [editedAuthor, setEditedAuthor] = useState('');
+    const [editedIsbn, setEditedIsbn] = useState('');
     const [editedDescription, setEditedDescription] = useState('');
+    const [refreshing, setRefreshing] = useState(false);
 
     const { data: book, isLoading, refetch } = useQuery({
         queryKey: ['book', bookId],
@@ -28,12 +33,25 @@ export const BookDetailScreen = () => {
         },
     });
 
+    // Invalidate cache on mount to ensure fresh data
     useEffect(() => {
-        if (book) {
-            setEditedTitle(book.title);
+        queryClient.invalidateQueries({ queryKey: ['book', bookId] });
+    }, [bookId, queryClient]);
+
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await refetch();
+        setRefreshing(false);
+    }, [refetch]);
+
+    useEffect(() => {
+        if (book && !isEditing) {
+            setEditedTitle(book.title || '');
+            setEditedAuthor(Array.isArray(book.authors) ? book.authors.join(', ') : (book.authors || ''));
+            setEditedIsbn(book.isbn || '');
             setEditedDescription(book.description || '');
         }
-    }, [book]);
+    }, [book, isEditing]);
 
     const updateMutation = useMutation({
         mutationFn: async (data: Partial<Book>) => {
@@ -53,9 +71,39 @@ export const BookDetailScreen = () => {
         },
     });
 
+    const deleteMutation = useMutation({
+        mutationFn: async () => {
+            return await pb.collection('books').delete(bookId);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['books'] });
+            navigation.goBack();
+        },
+        onError: (err) => {
+            Alert.alert(t('common.error'), t('common.deleteError', 'Silme işlemi başarısız oldu.'));
+        }
+    });
+
+    const handleDelete = () => {
+        Alert.alert(
+            t('common.delete', 'Sil'),
+            t('common.deleteConfirmation', 'Bu kitabı silmek istediğinize emin misiniz?'),
+            [
+                { text: t('common.cancel', 'İptal'), style: 'cancel' },
+                {
+                    text: t('common.delete', 'Sil'),
+                    style: 'destructive',
+                    onPress: () => deleteMutation.mutate()
+                }
+            ]
+        );
+    };
+
     const handleSave = () => {
         updateMutation.mutate({
             title: editedTitle,
+            authors: editedAuthor.split(',').map(a => a.trim()).filter(a => a.length > 0),
+            isbn: editedIsbn,
             description: editedDescription,
         });
     };
@@ -83,13 +131,18 @@ export const BookDetailScreen = () => {
             );
         } else {
             // Android fallback using Alert
+            const buttons: AlertButton[] = [
+                ...options.slice(0, 3).map((opt, index) => ({
+                    text: labels[index],
+                    onPress: () => updateMutation.mutate({ status: opt })
+                })),
+                { text: labels[3], style: 'cancel', onPress: () => { } }
+            ];
+
             Alert.alert(
                 t('detail.changeStatus', 'Durumu Değiştir'),
                 undefined,
-                options.slice(0, 3).map((opt, index) => ({
-                    text: labels[index],
-                    onPress: () => updateMutation.mutate({ status: opt })
-                })).concat([{ text: labels[3], style: 'cancel', onPress: () => { } }])
+                buttons
             );
         }
     };
@@ -119,22 +172,84 @@ export const BookDetailScreen = () => {
                 <Text className="text-lg font-bold text-gray-900 dark:text-white flex-1 text-center" numberOfLines={1}>
                     {book.title}
                 </Text>
+                <View className="w-10" />
+            </View>
+
+            {/* Action Bar */}
+            <View className="flex-row justify-around p-3 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                 <TouchableOpacity
                     onPress={() => isEditing ? handleSave() : setIsEditing(true)}
-                    className="p-2"
+                    className="items-center"
                     disabled={updateMutation.isPending}
                 >
-                    {updateMutation.isPending ? (
-                        <ActivityIndicator size="small" color="#3B82F6" />
-                    ) : (
-                        <Text className="text-blue-600 font-semibold">
-                            {isEditing ? t('common.save', 'Kaydet') : t('common.edit', 'Düzenle')}
-                        </Text>
-                    )}
+                    <View className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full mb-1">
+                        <Icon name={isEditing ? "content-save" : "pencil"} size={20} color="#2563EB" />
+                    </View>
+                    <Text className="text-xs text-gray-600 dark:text-gray-300">
+                        {isEditing ? t('common.save', 'Kaydet') : t('common.edit', 'Düzenle')}
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={() => updateMutation.mutate({ in_library: !book.in_library })}
+                    className="items-center"
+                    disabled={updateMutation.isPending}
+                >
+                    <View className={`p-2 rounded-full mb-1 ${book.in_library ? 'bg-green-100 dark:bg-green-900' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                        <Icon name="bookshelf" size={20} color={book.in_library ? "#166534" : "#4B5563"} />
+                    </View>
+                    <Text className="text-xs text-gray-600 dark:text-gray-300">
+                        {book.in_library ? t('detail.inLibrary', 'Kütüphanede') : t('detail.addToLibrary', 'Kütüphaneye Ekle')}
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={() => updateMutation.mutate({ is_archived: !book.is_archived })}
+                    className="items-center"
+                    disabled={updateMutation.isPending}
+                >
+                    <View className={`p-2 rounded-full mb-1 ${book.is_archived ? 'bg-orange-100 dark:bg-orange-900' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                        <Icon name="archive" size={20} color={book.is_archived ? "#C2410C" : "#4B5563"} />
+                    </View>
+                    <Text className="text-xs text-gray-600 dark:text-gray-300">
+                        {book.is_archived ? t('detail.archived', 'Arşivlendi') : t('detail.archive', 'Arşivle')}
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={handleDelete}
+                    className="items-center"
+                    disabled={deleteMutation.isPending}
+                >
+                    <View className="bg-red-100 dark:bg-red-900 p-2 rounded-full mb-1">
+                        <Icon name="trash-can-outline" size={20} color="#DC2626" />
+                    </View>
+                    <Text className="text-xs text-gray-600 dark:text-gray-300">
+                        {t('common.delete', 'Sil')}
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={() => updateMutation.mutate({ enrichment_status: 'pending' })}
+                    className="items-center"
+                    disabled={updateMutation.isPending || (book.enrichment_status !== 'completed' && book.enrichment_status !== 'failed')}
+                >
+                    <View className={`p-2 rounded-full mb-1 ${book.enrichment_status === 'completed' || book.enrichment_status === 'failed' ? 'bg-purple-100 dark:bg-purple-900' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                        <Icon name="creation" size={20} color={book.enrichment_status === 'completed' || book.enrichment_status === 'failed' ? "#9333EA" : "#9CA3AF"} />
+                    </View>
+                    <Text className="text-xs text-gray-600 dark:text-gray-300">
+                        {t('detail.regenerateAI', 'AI Yenile')}
+                    </Text>
                 </TouchableOpacity>
             </View>
 
-            <ScrollView className="flex-1 p-4">
+            <ScrollView
+                className="flex-1 p-4"
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3B82F6" />
+                }
+            >
+                {/* ... rest of the content */}
                 {/* Book Cover & Basic Info */}
                 <View className="flex-row mb-6">
                     <View className="w-32 h-48 shadow-md mr-4">
@@ -153,21 +268,43 @@ export const BookDetailScreen = () => {
 
                     <View className="flex-1 justify-center">
                         {isEditing ? (
-                            <TextInput
-                                className="text-xl font-bold text-gray-900 dark:text-white mb-2 border-b border-gray-300 pb-1"
-                                value={editedTitle}
-                                onChangeText={setEditedTitle}
-                                multiline
-                            />
+                            <View>
+                                <TextInput
+                                    className="text-xl font-bold text-gray-900 dark:text-white mb-2 border-b border-gray-300 pb-1"
+                                    value={editedTitle}
+                                    onChangeText={setEditedTitle}
+                                    multiline
+                                    placeholder={t('detail.titlePlaceholder', 'Kitap Adı')}
+                                />
+                                <TextInput
+                                    className="text-gray-600 dark:text-gray-400 mb-2 border-b border-gray-300 pb-1"
+                                    value={editedAuthor}
+                                    onChangeText={setEditedAuthor}
+                                    placeholder={t('detail.authorPlaceholder', 'Yazar')}
+                                />
+                                <TextInput
+                                    className="text-gray-500 dark:text-gray-500 text-sm mb-4 border-b border-gray-300 pb-1"
+                                    value={editedIsbn}
+                                    onChangeText={setEditedIsbn}
+                                    placeholder="ISBN"
+                                    keyboardType="numeric"
+                                />
+                            </View>
                         ) : (
-                            <Text className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                                {book.title}
-                            </Text>
+                            <View>
+                                <Text className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+                                    {book.title}
+                                </Text>
+                                <Text className="text-gray-600 dark:text-gray-400 mb-1">
+                                    {Array.isArray(book.authors) ? book.authors.join(', ') : book.authors}
+                                </Text>
+                                {book.isbn && (
+                                    <Text className="text-gray-500 dark:text-gray-500 text-sm mb-4">
+                                        ISBN: {book.isbn}
+                                    </Text>
+                                )}
+                            </View>
                         )}
-
-                        <Text className="text-gray-600 dark:text-gray-400 mb-4">
-                            {Array.isArray(book.authors) ? book.authors.join(', ') : book.authors}
-                        </Text>
 
                         <TouchableOpacity
                             onPress={handleStatusChange}
@@ -178,6 +315,10 @@ export const BookDetailScreen = () => {
                             </Text>
                             <Icon name="chevron-down" size={16} color="#3B82F6" />
                         </TouchableOpacity>
+
+                        <View className="mt-3">
+                            <AIStatusBadge status={book.enrichment_status} showLabel={true} />
+                        </View>
                     </View>
                 </View>
 
@@ -197,17 +338,8 @@ export const BookDetailScreen = () => {
                         />
                     ) : (
                         <Text className="text-gray-600 dark:text-gray-300 text-base leading-6">
-                            {book.description || t('detail.noDescription', 'Henüz bir özet yok.')}
+                            {book.description || book.ai_notes || t('detail.noDescription', 'Henüz bir özet yok.')}
                         </Text>
-                    )}
-
-                    {book.enrichment_status === 'processing' && (
-                        <View className="mt-4 flex-row items-center justify-center bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg">
-                            <ActivityIndicator size="small" color="#9333EA" className="mr-2" />
-                            <Text className="text-purple-700 dark:text-purple-300 font-medium">
-                                AI özeti hazırlıyor...
-                            </Text>
-                        </View>
                     )}
                 </View>
             </ScrollView>

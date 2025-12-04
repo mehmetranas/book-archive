@@ -3,8 +3,9 @@ import { NavigationContainer } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ActivityIndicator, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import './global.css';
-import './src/config/i18n';
+import i18n from './src/config/i18n';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
 import { MainNavigator } from './src/navigation/MainNavigator';
@@ -36,6 +37,20 @@ const AppNavigator = () => {
 };
 
 function App(): React.JSX.Element {
+    React.useEffect(() => {
+        const loadLanguage = async () => {
+            try {
+                const storedLang = await AsyncStorage.getItem('user-language');
+                if (storedLang) {
+                    i18n.changeLanguage(storedLang);
+                }
+            } catch (e) {
+                console.error('Failed to load language', e);
+            }
+        };
+        loadLanguage();
+    }, []);
+
     return (
         <SafeAreaProvider>
             <QueryClientProvider client={queryClient}>
