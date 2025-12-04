@@ -5,6 +5,7 @@ import React, {
     useState,
     ReactNode,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { pb, User } from '../services/pocketbase';
 
 type AuthContextType = {
@@ -33,6 +34,7 @@ type AuthProviderProps = {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const queryClient = useQueryClient();
 
     useEffect(() => {
         // Initialize auth state from stored token
@@ -100,6 +102,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const logout = async () => {
         pb.authStore.clear();
         setUser(null);
+        queryClient.clear();
     };
 
     const value: AuthContextType = {
