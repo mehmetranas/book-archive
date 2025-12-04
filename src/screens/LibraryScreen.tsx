@@ -37,6 +37,7 @@ export const LibraryScreen = () => {
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [manualTitle, setManualTitle] = useState('');
     const [manualAuthor, setManualAuthor] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
 
     const { data: books, isLoading, error, refetch } = useQuery({
         queryKey: ['books'],
@@ -214,9 +215,25 @@ export const LibraryScreen = () => {
         >
             {/* Header */}
             <View className="p-4 bg-white dark:bg-gray-800 shadow-sm z-10">
-                <Text className="text-2xl font-bold text-gray-900 dark:text-white">
+                <Text className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
                     {t('library.title', 'Library')}
                 </Text>
+                <View className="flex-row items-center bg-gray-100 dark:bg-gray-700 rounded-lg px-3 py-2">
+                    <Icon name="magnify" size={20} color="#9CA3AF" />
+                    <TextInput
+                        className="flex-1 ml-2 text-gray-900 dark:text-white"
+                        placeholder={t('library.searchPlaceholder', 'Kitap veya yazar ara...')}
+                        placeholderTextColor="#9CA3AF"
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        autoCorrect={false}
+                    />
+                    {searchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => setSearchQuery('')}>
+                            <Icon name="close-circle" size={16} color="#9CA3AF" />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
 
             {isLoading ? (
@@ -235,7 +252,14 @@ export const LibraryScreen = () => {
                 </View>
             ) : (
                 <FlashList<Book>
-                    data={books || []}
+                    data={books?.filter(book => {
+                        const query = searchQuery.toLowerCase();
+                        const authors = Array.isArray(book.authors) ? book.authors.join(' ') : (book.authors || '');
+                        return (
+                            book.title.toLowerCase().includes(query) ||
+                            authors.toLowerCase().includes(query)
+                        );
+                    }) || []}
                     renderItem={renderItem}
                     keyExtractor={(item) => item.id}
                     estimatedItemSize={88}

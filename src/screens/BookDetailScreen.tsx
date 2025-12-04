@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share } from 'react-native';
 
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -106,6 +106,18 @@ export const BookDetailScreen = () => {
             isbn: editedIsbn,
             description: editedDescription,
         });
+    };
+
+    const handleShare = async () => {
+        try {
+            const authorText = Array.isArray(book.authors) ? book.authors.join(', ') : book.authors;
+            const message = `${book.title} - ${authorText}`;
+            await Share.share({
+                message: message,
+            });
+        } catch (error: any) {
+            Alert.alert(t('common.error'), error.message);
+        }
     };
 
     const handleStatusChange = () => {
@@ -239,6 +251,18 @@ export const BookDetailScreen = () => {
                     </View>
                     <Text className="text-xs text-gray-600 dark:text-gray-300">
                         {t('detail.regenerateAI', 'AI Yenile')}
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={handleShare}
+                    className="items-center"
+                >
+                    <View className="bg-gray-200 dark:bg-gray-700 p-2 rounded-full mb-1">
+                        <Icon name="share-variant" size={20} color="#4B5563" />
+                    </View>
+                    <Text className="text-xs text-gray-600 dark:text-gray-300">
+                        {t('common.share', 'Paylaş')}
                     </Text>
                 </TouchableOpacity>
             </View>
