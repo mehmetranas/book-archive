@@ -26,6 +26,7 @@ export interface Movie {
     in_library?: boolean;
     is_archived?: boolean;
     certification?: string;
+    type?: 'movie' | 'tv';
 }
 
 export const MovieLibraryScreen = () => {
@@ -128,7 +129,7 @@ export const MovieLibraryScreen = () => {
 
         return (
             <TouchableOpacity
-                onPress={() => navigation.navigate('MovieDetail', { movieId: item.id })}
+                onPress={() => navigation.navigate('MovieDetail', { movieId: item.id, mediaType: item.type })}
                 className="flex-row bg-white dark:bg-gray-800 p-3 mb-2 mx-4 rounded-xl shadow-sm items-center"
             >
                 {/* Left: Small Poster Image */}
@@ -168,6 +169,13 @@ export const MovieLibraryScreen = () => {
                                 </Text>
                             </View>
                         ) : null}
+
+                        {/* TV Badge */}
+                        {item.type === 'tv' && (
+                            <View className="bg-blue-600 px-1.5 py-0.5 rounded">
+                                <Text className="text-[9px] font-bold text-white">DİZİ</Text>
+                            </View>
+                        )}
                     </View>
                 </View >
             </TouchableOpacity >

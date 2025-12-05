@@ -13,6 +13,10 @@ export interface Movie {
     poster_path: string | null;
     backdrop_path: string | null;
     vote_average: number;
+    // TV Specific
+    name?: string;
+    first_air_date?: string;
+    media_type?: 'movie' | 'tv' | 'person';
 }
 
 // Arama Sonucu Cevabı
@@ -124,7 +128,7 @@ export const tmdbRequest = async <T>(endpoint: string, params: Record<string, an
 export const searchMoviesProxy = (query: string, page = 1) => {
     if (!query) return Promise.resolve({ results: [] } as unknown as TMDBSearchResponse);
 
-    return tmdbRequest<TMDBSearchResponse>("search/movie", {
+    return tmdbRequest<TMDBSearchResponse>("search/multi", {
         query: query,
         page: page,
         language: "tr-TR"
@@ -142,46 +146,92 @@ export const getMovieDetailsProxy = (tmdbId: number) => {
     });
 };
 
+/**
+ * TV Detaylarını Getirir
+ * @param tmdbId TV ID
+ */
+export const getTVDetailsProxy = (tmdbId: number) => {
+    return tmdbRequest<TMDBDetailResponse>(`tv/${tmdbId}`, {
+        append_to_response: "credits,videos,similar,watch/providers,content_ratings", // TV için release_dates yerine content_ratings
+        language: "tr-TR"
+    });
+};
+
 export const addMovieToLibrary = async (movie: Movie | TMDBDetailResponse) => {
-    // 1. Fetch full details to get certification, runtime, extensive genres, director, etc.
-    const fullDetails = await getMovieDetailsProxy(movie.id);
+    const isTv = movie.media_type === 'tv';
+    let fullDetails: TMDBDetailResponse;
 
-    // 2. Extract Certification (TR or US fallback)
-    const releaseDates = fullDetails.release_dates?.results || [];
-    const trRelease = releaseDates.find((r) => r.iso_3166_1 === 'TR');
-    const usRelease = releaseDates.find((r) => r.iso_3166_1 === 'US');
+    // 1. Fetch Details based on Type
+    if (isTv) {
+        fullDetails = await getTVDetailsProxy(movie.id);
+    } else {
+        fullDetails = await getMovieDetailsProxy(movie.id);
+    }
 
-    // Attempt to find a non-empty certification
-    const certificate =
-        trRelease?.release_dates?.find(d => d.certification)?.certification ||
-        usRelease?.release_dates?.find(d => d.certification)?.certification ||
-        '';
+    // 2. Extract Certification
+    let certificate = '';
+    if (isTv) {
+        // TV Content Ratings
+        // Assuming response structure might be slightly different or mapped to same interface
+        // Real TMDB TV response has `content_ratings` instead of `release_dates`
+        // We'll trust the proxy returns whatever we asked.
+        const ratings = (fullDetails as any).content_ratings?.results || [];
+        const trRating = ratings.find((r: any) => r.iso_3166_1 === 'TR');
+        const usRating = ratings.find((r: any) => r.iso_3166_1 === 'US');
+        certificate = trRating?.rating || usRating?.rating || '';
+    } else {
+        // Movie Release Dates
+        const releaseDates = fullDetails.release_dates?.results || [];
+        const trRelease = releaseDates.find((r) => r.iso_3166_1 === 'TR');
+        const usRelease = releaseDates.find((r) => r.iso_3166_1 === 'US');
 
-    // 3. Extract Runtime
-    const runtime = fullDetails.runtime || 0;
+        certificate =
+            trRelease?.release_dates?.find(d => d.certification)?.certification ||
+            usRelease?.release_dates?.find(d => d.certification)?.certification ||
+            '';
+    }
 
-    // 4. Extract Genres (as array of strings)
+    // 3. Extract Common Data
+    // TV shows have `name` and `first_air_date` instead of `title` and `release_date`.
+    // The Interface `TMDBDetailResponse` extends `Movie` which has `title`.
+    // We cast or access dynamic properties for TV.
+
+    const title = isTv ? (fullDetails as any).name : fullDetails.title;
+    const releaseDate = isTv ? (fullDetails as any).first_air_date : fullDetails.release_date;
+    const runtime = fullDetails.runtime || (fullDetails as any).episode_run_time?.[0] || 0; // TV has episode_run_time array
     const genres = fullDetails.genres?.map(g => g.name) || [];
 
-    // 5. Extract Director
-    const director = fullDetails.credits?.crew?.find(c => c.job === 'Director')?.name || '';
+    // Director for TV implies Creator usually, or we search crew.
+    // TV credits crew often contains 'Executive Producer' or 'Series Director'.
+    // We'll stick to 'Director' search, usually found in episode credits but show details has 'created_by'.
+    let director = '';
+    if (isTv) {
+        const creators = (fullDetails as any).created_by;
+        if (creators && creators.length > 0) {
+            director = creators.map((c: any) => c.name).join(', ');
+        }
+    }
+    if (!director) {
+        director = fullDetails.credits?.crew?.find(c => c.job === 'Director')?.name || '';
+    }
 
     const posterUrl = fullDetails.poster_path
         ? `https://image.tmdb.org/t/p/w500${fullDetails.poster_path}`
         : '';
 
     const data = {
-        title: fullDetails.title,
+        title: title || '',
         tmdb_id: String(fullDetails.id),
         overview: fullDetails.overview,
-        release_date: fullDetails.release_date || '',
+        release_date: releaseDate || '',
         poster_path: posterUrl,
         user: pb.authStore.record?.id,
         enrichment_status: 'pending',
         certification: certificate,
-        genres: genres, // PocketBase expects JSON (or array depending on setup, usually handled by SDK)
+        genres: genres,
         director: director,
         runtime: runtime,
+        type: isTv ? 'tv' : 'movie',
     };
 
     return await pb.collection('movies').create(data);

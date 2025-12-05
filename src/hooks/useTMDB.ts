@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { searchMoviesProxy, getMovieDetailsProxy } from '../services/tmdb';
+import { searchMoviesProxy, getMovieDetailsProxy, getTVDetailsProxy } from '../services/tmdb';
 
 export const useSearchMovies = (query: string, page = 1) => {
     return useQuery({
@@ -11,10 +11,10 @@ export const useSearchMovies = (query: string, page = 1) => {
     });
 };
 
-export const useMovieDetails = (tmdbId: number) => {
+export const useMovieDetails = (tmdbId: number, mediaType: 'movie' | 'tv' = 'movie') => {
     return useQuery({
-        queryKey: ['tmdbMovie', tmdbId],
-        queryFn: () => getMovieDetailsProxy(tmdbId),
+        queryKey: ['tmdbDetail', mediaType, tmdbId],
+        queryFn: () => mediaType === 'tv' ? getTVDetailsProxy(tmdbId) : getMovieDetailsProxy(tmdbId),
         enabled: !!tmdbId,
         staleTime: 1000 * 60 * 30, // 30 minutes
     });

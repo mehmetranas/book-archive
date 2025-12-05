@@ -73,21 +73,25 @@ export const MovieSearchScreen = () => {
     };
 
     const renderItem = ({ item }: { item: Movie }) => {
+        const title = item.title || item.name;
+        const date = item.release_date || item.first_air_date;
+        const year = date ? date.split('-')[0] : '';
+        const isTv = item.media_type === 'tv';
+
         const posterUrl = item.poster_path
             ? `https://image.tmdb.org/t/p/w200${item.poster_path}`
             : null;
 
-        const year = item.release_date ? item.release_date.split('-')[0] : '';
         const isAdding = addMovieMutation.isPending && addMovieMutation.variables?.id === item.id;
 
         return (
             <TouchableOpacity
                 className="flex-row bg-white dark:bg-gray-800 p-3 mb-3 rounded-xl shadow-sm items-center"
                 onPress={() => {
-                    navigation.navigate('MovieDetail', { tmdbId: item.id });
+                    navigation.navigate('MovieDetail', { tmdbId: item.id, mediaType: item.media_type });
                 }}
             >
-                <View className="w-16 h-24 bg-gray-200 dark:bg-gray-700 rounded-md mr-4 overflow-hidden shadow-sm">
+                <View className="w-16 h-24 bg-gray-200 dark:bg-gray-700 rounded-md mr-4 overflow-hidden shadow-sm relative">
                     {posterUrl ? (
                         <Image
                             source={{ uri: posterUrl }}
@@ -99,11 +103,16 @@ export const MovieSearchScreen = () => {
                             <Icon name="movie-open" size={24} color="#9CA3AF" />
                         </View>
                     )}
+                    {isTv && (
+                        <View className="absolute top-0 right-0 bg-blue-600 px-1.5 py-0.5 rounded-bl-md z-10">
+                            <Text className="text-[9px] font-bold text-white">DİZİ</Text>
+                        </View>
+                    )}
                 </View>
 
                 <View className="flex-1 mr-2">
                     <Text className="text-lg font-bold text-gray-900 dark:text-white" numberOfLines={2}>
-                        {item.title}
+                        {title}
                     </Text>
                     {year ? (
                         <Text className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
@@ -181,6 +190,7 @@ export const MovieSearchScreen = () => {
                 <FlashList<Movie>
                     data={searchResult?.results || []}
                     renderItem={renderItem}
+                    keyExtractor={(item) => item.id.toString()}
                     estimatedItemSize={120}
                     contentContainerStyle={{ padding: 16 }}
                     ListEmptyComponent={

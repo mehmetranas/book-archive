@@ -20,9 +20,11 @@ export const MovieDetailScreen = () => {
     const queryClient = useQueryClient();
 
     // Accept parsed params: either a local movieId or a TMDB ID
-    const params = route.params as { movieId?: string; tmdbId?: number };
+    // Accept parsed params: either a local movieId or a TMDB ID
+    const params = route.params as { movieId?: string; tmdbId?: number; mediaType?: 'movie' | 'tv' };
     const initialMovieId = params.movieId;
     const initialTmdbId = params.tmdbId;
+    const initialMediaType = params.mediaType || 'movie';
 
     // 1. Fetch Local Movie Data (to check if saved and get details)
     const { data: localMovie, isLoading: isLocalLoading } = useQuery({
@@ -50,13 +52,15 @@ export const MovieDetailScreen = () => {
     const activeTmdbId = localMovie ? Number(localMovie.tmdb_id) : initialTmdbId;
 
     // 2. Fetch TMDB Details Data using new hook
-    const { data: tmdbMovie, isLoading: isTmdbLoading, error: tmdbError } = useMovieDetails(activeTmdbId || 0);
+    // 2. Fetch TMDB Details Data using new hook
+    const { data: tmdbMovie, isLoading: isTmdbLoading, error: tmdbError } = useMovieDetails(activeTmdbId || 0, initialMediaType);
 
     // Add Movie Mutation
     const addMutation = useMutation({
         mutationFn: async () => {
             if (!tmdbMovie) throw new Error("No TMDB data");
-            return await addMovieToLibrary(tmdbMovie);
+            const movieToAdd = { ...tmdbMovie, media_type: initialMediaType };
+            return await addMovieToLibrary(movieToAdd);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['movies'] });
