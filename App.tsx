@@ -7,9 +7,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import './global.css';
 import i18n from './src/config/i18n';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { ModeProvider, useMode } from './src/context/ModeContext';
 
 import { MainNavigator } from './src/navigation/MainNavigator';
 import { AuthNavigator } from './src/navigation/AuthNavigator';
+import { MovieNavigator } from './src/navigation/MovieNavigator';
 
 // TanStack Query client
 const queryClient = new QueryClient({
@@ -23,9 +25,10 @@ const queryClient = new QueryClient({
 
 // App Navigator - handles auth state routing
 const AppNavigator = () => {
-    const { isAuthenticated, isLoading } = useAuth();
+    const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+    const { mode } = useMode();
 
-    if (isLoading) {
+    if (isAuthLoading) {
         return (
             <View className="flex-1 items-center justify-center bg-white dark:bg-gray-900">
                 <ActivityIndicator size="large" color="#3B82F6" />
@@ -33,7 +36,11 @@ const AppNavigator = () => {
         );
     }
 
-    return isAuthenticated ? <MainNavigator /> : <AuthNavigator />;
+    if (!isAuthenticated) {
+        return <AuthNavigator />;
+    }
+
+    return mode === 'movies' ? <MovieNavigator /> : <MainNavigator />;
 };
 
 function App(): React.JSX.Element {
@@ -55,9 +62,11 @@ function App(): React.JSX.Element {
         <SafeAreaProvider>
             <QueryClientProvider client={queryClient}>
                 <AuthProvider>
-                    <NavigationContainer>
-                        <AppNavigator />
-                    </NavigationContainer>
+                    <ModeProvider>
+                        <NavigationContainer>
+                            <AppNavigator />
+                        </NavigationContainer>
+                    </ModeProvider>
                 </AuthProvider>
             </QueryClientProvider>
         </SafeAreaProvider>

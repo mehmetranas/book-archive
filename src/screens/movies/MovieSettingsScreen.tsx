@@ -2,12 +2,13 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../context/AuthContext';
-import { useMode } from '../context/ModeContext';
+import { useAuth } from '../../context/AuthContext';
+import { useMode } from '../../context/ModeContext';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export const SettingsScreen = () => {
+export const MovieSettingsScreen = () => {
     const { t, i18n } = useTranslation();
     const { logout, user } = useAuth();
     const { toggleMode } = useMode();
@@ -46,20 +47,20 @@ export const SettingsScreen = () => {
                 {/* Switch App Mode */}
                 <TouchableOpacity
                     onPress={toggleMode}
-                    className="bg-indigo-100 dark:bg-indigo-900 rounded-lg p-4 mb-6 flex-row items-center border border-indigo-200 dark:border-indigo-800"
+                    className="bg-purple-100 dark:bg-purple-900 rounded-lg p-4 mb-6 flex-row items-center border border-purple-200 dark:border-purple-800"
                 >
-                    <View className="bg-indigo-200 dark:bg-indigo-800 p-2 rounded-full mr-4">
-                        <Icon name="movie-open" size={24} color="#4338CA" />
+                    <View className="bg-purple-200 dark:bg-purple-800 p-2 rounded-full mr-4">
+                        <Icon name="book-open-variant" size={24} color="#6B21A8" />
                     </View>
                     <View className="flex-1">
-                        <Text className="text-lg font-bold text-indigo-900 dark:text-indigo-100">
-                            CineVault'a Geç
+                        <Text className="text-lg font-bold text-purple-900 dark:text-purple-100">
+                            Book Vault'a Geç
                         </Text>
-                        <Text className="text-indigo-700 dark:text-indigo-300 text-sm">
-                            Film arşivinizi yönetmek için tıklayın
+                        <Text className="text-purple-700 dark:text-purple-300 text-sm">
+                            Kitap arşivinizi yönetmek için tıklayın
                         </Text>
                     </View>
-                    <Icon name="chevron-right" size={24} color="#4338CA" />
+                    <Icon name="chevron-right" size={24} color="#6B21A8" />
                 </TouchableOpacity>
 
                 {/* User Info */}
