@@ -4,14 +4,7 @@ import * as RNLocalize from 'react-native-localize';
 import en from '../locales/en.json';
 import tr from '../locales/tr.json';
 
-// Telefonun dilini algıla
-const deviceLanguage = RNLocalize.getLocales()[0]?.languageCode || 'en';
-
-// Desteklenen dilleri kontrol et
-const supportedLanguages = ['en', 'tr'];
-const fallbackLanguage = supportedLanguages.includes(deviceLanguage)
-    ? deviceLanguage
-    : 'en';
+const deviceLanguage = 'tr'; // Default logic overridden
 
 i18n
     .use(initReactI18next)
@@ -24,8 +17,8 @@ i18n
                 translation: tr,
             },
         },
-        lng: fallbackLanguage,
-        fallbackLng: 'en',
+        lng: 'tr',
+        fallbackLng: 'tr',
         interpolation: {
             escapeValue: false,
         },

@@ -99,6 +99,8 @@ export const SearchScreen = () => {
         const { volumeInfo } = item;
         const coverUrl = volumeInfo.imageLinks?.thumbnail || volumeInfo.imageLinks?.smallThumbnail;
 
+        const isAdding = addBookMutation.isPending && addBookMutation.variables?.id === item.id;
+
         return (
             <View className="flex-row bg-white dark:bg-gray-800 p-4 mb-3 rounded-xl shadow-sm items-center">
                 {coverUrl ? (
@@ -125,9 +127,9 @@ export const SearchScreen = () => {
                 <TouchableOpacity
                     className="bg-blue-600 px-4 py-2 rounded-lg"
                     onPress={() => addBookMutation.mutate(item)}
-                    disabled={addBookMutation.isPending}
+                    disabled={isAdding}
                 >
-                    {addBookMutation.isPending ? (
+                    {isAdding ? (
                         <ActivityIndicator size="small" color="white" />
                     ) : (
                         <Text className="text-white font-semibold">{t('common.add')}</Text>

@@ -255,13 +255,7 @@ export const MovieLibraryScreen = () => {
                 />
             )}
 
-            {/* FAB */}
-            <TouchableOpacity
-                onPress={() => setIsModalVisible(true)}
-                className="absolute bottom-6 right-6 bg-blue-600 w-14 h-14 rounded-full items-center justify-center shadow-lg z-50"
-            >
-                <Icon name="plus" size={30} color="white" />
-            </TouchableOpacity>
+
 
             {/* Manual Add Modal */}
             <Modal
