@@ -1,15 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share } from 'react-native';
-
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert, StatusBar, Dimensions, Animated } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { pb } from '../../services/pocketbase';
+import { useMovieDetails } from '../../hooks/useTMDB';
+import { addMovieToLibrary } from '../../services/tmdb';
 import { Movie } from './MovieLibraryScreen';
-import { AIStatusBadge } from '../../components/AIStatusBadge';
-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const { width } = Dimensions.get('window');
 
 export const MovieDetailScreen = () => {
     const { t } = useTranslation();
@@ -17,72 +18,105 @@ export const MovieDetailScreen = () => {
     const route = useRoute();
     const navigation = useNavigation();
     const queryClient = useQueryClient();
-    const { movieId } = route.params as { movieId: string };
 
-    const [isEditing, setIsEditing] = useState(false);
-    const [editedTitle, setEditedTitle] = useState('');
-    const [editedDirector, setEditedDirector] = useState('');
-    const [editedDescription, setEditedDescription] = useState('');
-    const [refreshing, setRefreshing] = useState(false);
+    // Accept parsed params: either a local movieId or a TMDB ID
+    const params = route.params as { movieId?: string; tmdbId?: number };
+    const initialMovieId = params.movieId;
+    const initialTmdbId = params.tmdbId;
 
-    const { data: movie, isLoading, refetch } = useQuery({
-        queryKey: ['movie', movieId],
+    // 1. Fetch Local Movie Data (to check if saved and get details)
+    const { data: localMovie, isLoading: isLocalLoading } = useQuery({
+        queryKey: ['localMovie', initialMovieId, initialTmdbId],
         queryFn: async () => {
-            return await pb.collection('movies').getOne<Movie>(movieId);
+            try {
+                if (initialMovieId) {
+                    return await pb.collection('movies').getOne<Movie>(initialMovieId);
+                }
+                if (initialTmdbId) {
+                    // Try to find if we already have this movie
+                    const records = await pb.collection('movies').getList<Movie>(1, 1, {
+                        filter: `tmdb_id = "${initialTmdbId}"`,
+                    });
+                    return records.items[0] || null;
+                }
+                return null;
+            } catch (e) {
+                console.log('Error fetching local movie:', e);
+                return null;
+            }
         },
     });
 
-    // Invalidate cache on mount to ensure fresh data
-    useEffect(() => {
-        queryClient.invalidateQueries({ queryKey: ['movie', movieId] });
-    }, [movieId, queryClient]);
+    const activeTmdbId = localMovie ? Number(localMovie.tmdb_id) : initialTmdbId;
 
-    const onRefresh = useCallback(async () => {
-        setRefreshing(true);
-        await refetch();
-        setRefreshing(false);
-    }, [refetch]);
+    // 2. Fetch TMDB Details Data using new hook
+    const { data: tmdbMovie, isLoading: isTmdbLoading, error: tmdbError } = useMovieDetails(activeTmdbId || 0);
 
-    useEffect(() => {
-        if (movie && !isEditing) {
-            setEditedTitle(movie.title || '');
-            setEditedDirector(movie.director || '');
-            setEditedDescription(movie.description || '');
-        }
-    }, [movie, isEditing]);
-
-    const updateMutation = useMutation({
-        mutationFn: async (data: Partial<Movie>) => {
-            return await pb.collection('movies').update(movieId, data);
+    // Add Movie Mutation
+    const addMutation = useMutation({
+        mutationFn: async () => {
+            if (!tmdbMovie) throw new Error("No TMDB data");
+            return await addMovieToLibrary(tmdbMovie);
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['movie', movieId] });
             queryClient.invalidateQueries({ queryKey: ['movies'] });
-            setIsEditing(false);
-            Alert.alert(t('common.success'), t('detail.updateSuccess', 'Film güncellendi'));
+            queryClient.invalidateQueries({ queryKey: ['localMovie'] }); // Refresh local state to show Delete button
+            Alert.alert(t('common.success'), t('search.movieAdded', 'Film kütüphaneye eklendi'));
         },
-        onError: (err: any) => {
-            console.error('Update error:', err);
-            const errorMessage = err?.data?.message || err?.message || t('detail.updateError', 'Güncelleme hatası');
-            const validationErrors = err?.data?.data ? JSON.stringify(err.data.data, null, 2) : '';
-            Alert.alert(t('common.error'), `${errorMessage}\n${validationErrors}`);
-        },
+        onError: (err) => {
+            Alert.alert(t('common.error'), t('search.addMovieError', 'Film eklenirken bir hata oluştu.'));
+        }
     });
 
+    // Delete Mutation
     const deleteMutation = useMutation({
         mutationFn: async () => {
-            return await pb.collection('movies').delete(movieId);
+            // We need the ID of the record to delete. 
+            // If we found a localMovie, we use its ID.
+            if (localMovie?.id) {
+                return await pb.collection('movies').delete(localMovie.id);
+            }
+            throw new Error("No local movie to delete");
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['movies'] });
-            navigation.goBack();
+            queryClient.invalidateQueries({ queryKey: ['localMovie'] });
+            // If we came from library, go back. If from search, maybe stay or update UI?
+            // User said: "remove delete option" in this context? No, user said "durum ve yayinci bilgisi alanlarida olmasin" (remove status and publisher info).
+            // Previous request was to allow adding.
+            // If deleted, we should probably just update state to show "Add" button again, OR go back if explicit navigation.
+            // But if generic, maybe just update state.
+            // Current behavior: navigation.goBack().
+            // If I am on Details from Search, and I Add then Delete, I probably want to stay or go back to Search.
+            // Safest: goBack() if it was passed a movieId (implies existing).
+            if (initialMovieId) {
+                navigation.goBack();
+            } else {
+                // From search, just invalidate to show Add button again
+            }
         },
         onError: (err) => {
             Alert.alert(t('common.error'), t('common.deleteError', 'Silme işlemi başarısız oldu.'));
         }
     });
 
+    // Scroll Animation Values
+    const scrollY = React.useRef(new Animated.Value(0)).current;
+
+    const headerOpacity = scrollY.interpolate({
+        inputRange: [300, 400],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+    });
+
+    const headerBackgroundOpacity = scrollY.interpolate({
+        inputRange: [300, 400],
+        outputRange: [0, 0.9],
+        extrapolate: 'clamp',
+    });
+
     const handleDelete = () => {
+        if (!localMovie) return;
         Alert.alert(
             t('common.delete', 'Sil'),
             t('common.deleteConfirmation', 'Bu filmi silmek istediğinize emin misiniz?'),
@@ -97,65 +131,7 @@ export const MovieDetailScreen = () => {
         );
     };
 
-    const handleSave = () => {
-        updateMutation.mutate({
-            title: editedTitle,
-            director: editedDirector,
-            description: editedDescription,
-        });
-    };
-
-    const handleShare = async () => {
-        try {
-            const message = `${movie.title} - ${movie.director}`;
-            await Share.share({
-                message: message,
-            });
-        } catch (error: any) {
-            Alert.alert(t('common.error'), error.message);
-        }
-    };
-
-    const handleStatusChange = () => {
-        const options = ['want_to_watch', 'watching', 'watched', 'cancel'];
-        const labels = [
-            t('status.wantToWatch', 'İzlenecek'),
-            t('status.watching', 'İzleniyor'),
-            t('status.watched', 'İzlendi'),
-            t('common.cancel', 'İptal')
-        ];
-
-        if (Platform.OS === 'ios') {
-            ActionSheetIOS.showActionSheetWithOptions(
-                {
-                    options: labels,
-                    cancelButtonIndex: 3,
-                },
-                (buttonIndex) => {
-                    if (buttonIndex !== 3) {
-                        updateMutation.mutate({ status: options[buttonIndex] });
-                    }
-                }
-            );
-        } else {
-            // Android fallback using Alert
-            const buttons: AlertButton[] = [
-                ...options.slice(0, 3).map((opt, index) => ({
-                    text: labels[index],
-                    onPress: () => updateMutation.mutate({ status: opt })
-                })),
-                { text: labels[3], style: 'cancel', onPress: () => { } }
-            ];
-
-            Alert.alert(
-                t('detail.changeStatus', 'Durumu Değiştir'),
-                undefined,
-                buttons
-            );
-        }
-    };
-
-    if (isLoading || !movie) {
+    if (isLocalLoading || (activeTmdbId && isTmdbLoading)) {
         return (
             <View className="flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <ActivityIndicator size="large" color="#3B82F6" />
@@ -163,193 +139,303 @@ export const MovieDetailScreen = () => {
         );
     }
 
-    const posterUrl = movie.poster_url?.startsWith('http://')
-        ? movie.poster_url.replace('http://', 'https://')
-        : movie.poster_url;
+    if (!localMovie && !tmdbMovie) {
+        return (
+            <View className="flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900">
+                <Text className="text-gray-500 dark:text-gray-400">Film bulunamadı.</Text>
+            </View>
+        );
+    }
+
+    // Use TMDB data if available, fallback to local data
+    const title = tmdbMovie?.title || localMovie?.title;
+    const overview = tmdbMovie?.overview || localMovie?.description || localMovie?.ai_notes; // Fallback chain
+    const backdropPath = tmdbMovie?.backdrop_path
+        ? `https://image.tmdb.org/t/p/w1280${tmdbMovie.backdrop_path}`
+        : null;
+    const posterPath = tmdbMovie?.poster_path
+        ? `https://image.tmdb.org/t/p/w500${tmdbMovie.poster_path}`
+        : localMovie?.poster_path?.startsWith('http') ? localMovie.poster_path : null;
+
+    const runtime = tmdbMovie?.runtime ? `${Math.floor(tmdbMovie.runtime / 60)}h ${tmdbMovie.runtime % 60}m` : null;
+    const year = tmdbMovie?.release_date ? tmdbMovie.release_date.split('-')[0] : (localMovie?.release_date ? localMovie.release_date.split('-')[0] : null);
+    const voteAverage = tmdbMovie?.vote_average ? tmdbMovie.vote_average.toFixed(1) : null;
+
+    // Certification Logic
+    const releaseDates = tmdbMovie?.release_dates?.results || [];
+    const trRelease = releaseDates.find((r) => r.iso_3166_1 === 'TR');
+    const usRelease = releaseDates.find((r) => r.iso_3166_1 === 'US');
+    const tmdbCertification =
+        trRelease?.release_dates?.find(d => d.certification)?.certification ||
+        usRelease?.release_dates?.find(d => d.certification)?.certification;
+
+    const certification = localMovie?.certification || tmdbCertification;
 
     return (
-        <View
-            className="flex-1 bg-gray-50 dark:bg-gray-900"
-            style={{ paddingTop: insets.top }}
-        >
-            {/* Header */}
-            <View className="flex-row items-center justify-between p-4 bg-white dark:bg-gray-800 shadow-sm z-10">
-                <TouchableOpacity onPress={() => navigation.goBack()} className="p-2">
-                    <Icon name="arrow-left" size={24} color="#374151" />
-                </TouchableOpacity>
-                <Text className="text-lg font-bold text-gray-900 dark:text-white flex-1 text-center" numberOfLines={1}>
-                    {movie.title}
-                </Text>
-                <View className="w-10" />
-            </View>
+        <View className="flex-1 bg-white dark:bg-gray-950">
+            <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-            {/* Action Bar */}
-            <View className="flex-row justify-around p-3 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                <TouchableOpacity
-                    onPress={() => isEditing ? handleSave() : setIsEditing(true)}
-                    className="items-center"
-                    disabled={updateMutation.isPending}
-                >
-                    <View className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full mb-1">
-                        <Icon name={isEditing ? "content-save" : "pencil"} size={20} color="#2563EB" />
-                    </View>
-                    <Text className="text-xs text-gray-600 dark:text-gray-300">
-                        {isEditing ? t('common.save', 'Kaydet') : t('common.edit', 'Düzenle')}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={() => updateMutation.mutate({ in_library: !movie.in_library })}
-                    className="items-center"
-                    disabled={updateMutation.isPending}
-                >
-                    <View className={`p-2 rounded-full mb-1 ${movie.in_library ? 'bg-green-100 dark:bg-green-900' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                        <Icon name="bookshelf" size={20} color={movie.in_library ? "#166534" : "#4B5563"} />
-                    </View>
-                    <Text className="text-xs text-gray-600 dark:text-gray-300">
-                        {movie.in_library ? t('detail.inLibrary', 'Kütüphanede') : t('detail.addToLibrary', 'Kütüphaneye Ekle')}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={() => updateMutation.mutate({ is_archived: !movie.is_archived })}
-                    className="items-center"
-                    disabled={updateMutation.isPending}
-                >
-                    <View className={`p-2 rounded-full mb-1 ${movie.is_archived ? 'bg-orange-100 dark:bg-orange-900' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                        <Icon name="archive" size={20} color={movie.is_archived ? "#C2410C" : "#4B5563"} />
-                    </View>
-                    <Text className="text-xs text-gray-600 dark:text-gray-300">
-                        {movie.is_archived ? t('detail.archived', 'Arşivlendi') : t('detail.archive', 'Arşivle')}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={handleDelete}
-                    className="items-center"
-                    disabled={deleteMutation.isPending}
-                >
-                    <View className="bg-red-100 dark:bg-red-900 p-2 rounded-full mb-1">
-                        <Icon name="trash-can-outline" size={20} color="#DC2626" />
-                    </View>
-                    <Text className="text-xs text-gray-600 dark:text-gray-300">
-                        {t('common.delete', 'Sil')}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={() => updateMutation.mutate({ enrichment_status: 'pending' })}
-                    className="items-center"
-                    disabled={updateMutation.isPending || (movie.enrichment_status !== 'completed' && movie.enrichment_status !== 'failed')}
-                >
-                    <View className={`p-2 rounded-full mb-1 ${movie.enrichment_status === 'completed' || movie.enrichment_status === 'failed' ? 'bg-purple-100 dark:bg-purple-900' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                        <Icon name="creation" size={20} color={movie.enrichment_status === 'completed' || movie.enrichment_status === 'failed' ? "#9333EA" : "#9CA3AF"} />
-                    </View>
-                    <Text className="text-xs text-gray-600 dark:text-gray-300">
-                        {t('detail.regenerateAI', 'AI Yenile')}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={handleShare}
-                    className="items-center"
-                >
-                    <View className="bg-gray-200 dark:bg-gray-700 p-2 rounded-full mb-1">
-                        <Icon name="share-variant" size={20} color="#4B5563" />
-                    </View>
-                    <Text className="text-xs text-gray-600 dark:text-gray-300">
-                        {t('common.share', 'Paylaş')}
-                    </Text>
-                </TouchableOpacity>
-            </View>
-
-            <ScrollView
-                className="flex-1 p-4"
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3B82F6" />
-                }
+            {/* Navbar Overlay - Fixed at top */}
+            <View
+                className="absolute top-0 left-0 right-0 z-50"
+                style={{ paddingTop: insets.top }}
             >
-                {/* Movie Poster & Basic Info */}
-                <View className="flex-row mb-6">
-                    <View className="w-32 h-48 shadow-md mr-4">
-                        {posterUrl ? (
-                            <Image
-                                source={{ uri: posterUrl }}
-                                className="w-full h-full rounded-lg"
-                                resizeMode="cover"
-                            />
-                        ) : (
-                            <View className="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-lg items-center justify-center">
-                                <Icon name="movie-open" size={40} color="#9CA3AF" />
-                            </View>
-                        )}
-                    </View>
+                {/* Animated Background */}
+                <Animated.View
+                    className="absolute top-0 left-0 right-0 bottom-0 bg-gray-950 border-b border-gray-800"
+                    style={{ opacity: headerBackgroundOpacity }}
+                />
 
-                    <View className="flex-1 justify-center">
-                        {isEditing ? (
-                            <View>
-                                <TextInput
-                                    className="text-xl font-bold text-gray-900 dark:text-white mb-2 border-b border-gray-300 pb-1"
-                                    value={editedTitle}
-                                    onChangeText={setEditedTitle}
-                                    multiline
-                                    placeholder={t('detail.movieTitlePlaceholder', 'Film Adı')}
-                                />
-                                <TextInput
-                                    className="text-gray-600 dark:text-gray-400 mb-2 border-b border-gray-300 pb-1"
-                                    value={editedDirector}
-                                    onChangeText={setEditedDirector}
-                                    placeholder={t('detail.directorPlaceholder', 'Yönetmen')}
-                                />
-                            </View>
-                        ) : (
-                            <View>
-                                <Text className="text-xl font-bold text-gray-900 dark:text-white mb-1">
-                                    {movie.title}
-                                </Text>
-                                <Text className="text-gray-600 dark:text-gray-400 mb-1">
-                                    {movie.director}
-                                </Text>
-                            </View>
-                        )}
+                <View className="flex-row justify-between items-center px-4 h-14">
+                    <TouchableOpacity
+                        onPress={() => navigation.goBack()}
+                        className="w-10 h-10 rounded-full items-center justify-center z-10"
+                        style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}
+                    >
+                        <Icon name="arrow-left" size={24} color="white" />
+                    </TouchableOpacity>
 
+                    {/* Sticky Title */}
+                    <Animated.Text
+                        className="flex-1 text-white font-bold text-center text-lg mx-4"
+                        numberOfLines={1}
+                        style={{ opacity: headerOpacity }}
+                    >
+                        {title}
+                    </Animated.Text>
+
+                    {/* Add / Delete Action Button */}
+                    {localMovie ? (
                         <TouchableOpacity
-                            onPress={handleStatusChange}
-                            className="bg-blue-100 dark:bg-blue-900/30 px-4 py-2 rounded-lg self-start flex-row items-center"
+                            onPress={handleDelete}
+                            className="w-10 h-10 rounded-full items-center justify-center z-10"
+                            style={{ backgroundColor: 'rgba(239, 68, 68, 0.8)' }}
                         >
-                            <Text className="text-blue-700 dark:text-blue-300 font-medium mr-2">
-                                {t(`status.${movie.status}`, movie.status)}
-                            </Text>
-                            <Icon name="chevron-down" size={16} color="#3B82F6" />
+                            <Icon name="trash-can-outline" size={20} color="white" />
                         </TouchableOpacity>
-
-                        <View className="mt-3">
-                            <AIStatusBadge status={movie.enrichment_status} showLabel={true} />
-                        </View>
-                    </View>
-                </View>
-
-                {/* Description Section */}
-                <View className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-6">
-                    <Text className="text-lg font-bold text-gray-900 dark:text-white mb-3">
-                        {t('detail.description', 'Özet')}
-                    </Text>
-
-                    {isEditing ? (
-                        <TextInput
-                            className="text-gray-600 dark:text-gray-300 text-base leading-6 min-h-[150px] border border-gray-200 rounded-lg p-2"
-                            value={editedDescription}
-                            onChangeText={setEditedDescription}
-                            multiline
-                            textAlignVertical="top"
-                        />
                     ) : (
-                        <Text className="text-gray-600 dark:text-gray-300 text-base leading-6">
-                            {movie.description || movie.ai_notes || t('detail.noDescription', 'Henüz bir özet yok.')}
-                        </Text>
+                        <TouchableOpacity
+                            onPress={() => addMutation.mutate()}
+                            disabled={addMutation.isPending}
+                            className="w-10 h-10 rounded-full items-center justify-center z-10"
+                            style={{ backgroundColor: 'rgba(59, 130, 246, 0.8)' }}
+                        >
+                            {addMutation.isPending ? (
+                                <ActivityIndicator size="small" color="white" />
+                            ) : (
+                                <Icon name="plus" size={24} color="white" />
+                            )}
+                        </TouchableOpacity>
                     )}
                 </View>
-            </ScrollView>
+            </View>
+
+            <Animated.ScrollView
+                className="flex-1"
+                contentContainerStyle={{ paddingBottom: 100 }}
+                bounces={false}
+                onScroll={Animated.event(
+                    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                    { useNativeDriver: true }
+                )}
+                scrollEventThrottle={16}
+            >
+                {/* Backdrop Image Area */}
+                <View className="relative w-full h-[450px]">
+                    {backdropPath ? (
+                        <Image
+                            source={{ uri: backdropPath }}
+                            className="w-full h-full"
+                            resizeMode="cover"
+                        />
+                    ) : (
+                        <View className="w-full h-full bg-gray-900 items-center justify-center">
+                            <Icon name="movie-open-outline" size={64} color="#4B5563" />
+                        </View>
+                    )}
+
+                    {/* Simple Gradient Simulation using Views for compatibility without rebuilding */}
+                    <View className="absolute bottom-0 w-full h-[60%] bg-black/40" />
+                    <View className="absolute bottom-0 w-full h-[30%] bg-black/60" />
+                    <View className="absolute bottom-0 w-full h-[10%] bg-black/80" />
+
+                    {/* Note: Navbar moved outside ScrollView for sticky effect */}
+
+                    {/* Bottom Title Area in Header */}
+                    <View className="absolute bottom-0 left-0 right-0 px-6 pb-8">
+                        {/* Tags / Meta Row */}
+                        <View className="flex-row items-center gap-3 mb-3">
+                            {year && (
+                                <View className="bg-white/20 px-2 py-1 rounded-md backdrop-blur-sm">
+                                    <Text className="text-white text-xs font-bold">{year}</Text>
+                                </View>
+                            )}
+                            {certification && (
+                                <View className="bg-white/20 px-2 py-1 rounded-md backdrop-blur-sm border border-white/10">
+                                    <Text className="text-white text-xs font-bold">{certification}</Text>
+                                </View>
+                            )}
+                            {runtime && (
+                                <Text className="text-gray-300 text-xs font-medium">{runtime}</Text>
+                            )}
+                            {voteAverage && (
+                                <View className="flex-row items-center">
+                                    <Icon name="star" size={12} color="#F59E0B" />
+                                    <Text className="text-yellow-400 text-xs font-bold ml-1">
+                                        {voteAverage} <Text className="text-gray-400 font-normal">({tmdbMovie?.vote_count})</Text>
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+
+                        <Text className="text-4xl font-black text-white leading-tight shadow-sm">
+                            {title}
+                        </Text>
+
+                        {tmdbMovie?.tagline ? (
+                            <Text className="text-gray-300 text-sm italic mt-2 opacity-90">
+                                "{tmdbMovie.tagline}"
+                            </Text>
+                        ) : null}
+                    </View>
+                </View>
+
+                {/* Content Body */}
+                <View className="px-6 pt-4">
+                    {/* Watch Providers (TR) */}
+                    {tmdbMovie?.['watch/providers']?.results?.TR && (
+                        <View className="mb-6">
+                            {/* Streaming */}
+                            {tmdbMovie['watch/providers'].results.TR.flatrate && (
+                                <View className="mb-3">
+                                    <Text className="text-xs font-bold text-gray-400 mb-2 uppercase">Yayınlanan Platformlar</Text>
+                                    <View className="flex-row flex-wrap gap-2">
+                                        {tmdbMovie['watch/providers'].results.TR.flatrate.map((p, index) => (
+                                            <View key={index} className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                                                <Image
+                                                    source={{ uri: `https://image.tmdb.org/t/p/original${p.logo_path}` }}
+                                                    className="w-full h-full"
+                                                />
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            )}
+                        </View>
+                    )}
+
+                    {/* Genres */}
+                    {tmdbMovie?.genres && tmdbMovie.genres.length > 0 && (
+                        <View className="flex-row flex-wrap gap-2 mb-6">
+                            {tmdbMovie.genres.map((g) => (
+                                <View key={g.id} className="border border-gray-200 dark:border-gray-800 rounded-full px-3 py-1">
+                                    <Text className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                        {g.name}
+                                    </Text>
+                                </View>
+                            ))}
+                        </View>
+                    )}
+
+                    {/* Overview */}
+                    <View className="mb-8">
+                        <Text className="text-lg font-bold text-gray-900 dark:text-white mb-3">
+                            {t('detail.description', 'Özet')}
+                        </Text>
+                        <Text className="text-gray-600 dark:text-gray-300 leading-7 text-base">
+                            {overview || t('detail.noDescription', 'Henüz bir özet yok.')}
+                        </Text>
+                    </View>
+
+                    {/* Cast & Crew */}
+                    {(tmdbMovie?.credits?.cast && tmdbMovie.credits.cast.length > 0 || tmdbMovie?.credits?.crew?.find(c => c.job === 'Director')) && (
+                        <View className="mb-8">
+                            <Text className="text-sm font-bold text-gray-900 dark:text-white mb-4 opacity-70">
+                                OYUNCULAR & EKİP
+                            </Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                {/* Director */}
+                                {tmdbMovie?.credits?.crew?.filter(c => c.job === 'Director').map((director) => (
+                                    <View key={`director-${director.id}`} className="mr-4 w-24">
+                                        <View className="w-24 h-36 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden mb-2 border-2 border-blue-100 dark:border-blue-900">
+                                            {director.profile_path ? (
+                                                <Image
+                                                    source={{ uri: `https://image.tmdb.org/t/p/w200${director.profile_path}` }}
+                                                    className="w-full h-full"
+                                                    resizeMode="cover"
+                                                />
+                                            ) : (
+                                                <View className="flex-1 items-center justify-center">
+                                                    <Icon name="movie-open" size={32} color="#9CA3AF" />
+                                                </View>
+                                            )}
+                                        </View>
+                                        <Text className="text-xs font-semibold text-gray-900 dark:text-white" numberOfLines={1}>{director.name}</Text>
+                                        <Text className="text-[10px] text-blue-500 font-bold" numberOfLines={1}>{t('library.directorName', 'Yönetmen')}</Text>
+                                    </View>
+                                ))}
+
+                                {/* Cast */}
+                                {tmdbMovie?.credits?.cast?.slice(0, 10).map((c) => (
+                                    <View key={c.id} className="mr-4 w-24">
+                                        <View className="w-24 h-36 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden mb-2">
+                                            {c.profile_path ? (
+                                                <Image
+                                                    source={{ uri: `https://image.tmdb.org/t/p/w200${c.profile_path}` }}
+                                                    className="w-full h-full"
+                                                    resizeMode="cover"
+                                                />
+                                            ) : (
+                                                <View className="flex-1 items-center justify-center">
+                                                    <Icon name="account" size={32} color="#9CA3AF" />
+                                                </View>
+                                            )}
+                                        </View>
+                                        <Text className="text-xs font-semibold text-gray-900 dark:text-white" numberOfLines={1}>{c.name}</Text>
+                                        <Text className="text-[10px] text-gray-500 dark:text-gray-400" numberOfLines={1}>{c.character}</Text>
+                                    </View>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    )}
+
+                    {/* Similar Movies */}
+                    {tmdbMovie?.similar?.results && tmdbMovie.similar.results.length > 0 && (
+                        <View className="mb-8">
+                            <Text className="text-sm font-bold text-gray-900 dark:text-white mb-4 opacity-70">
+                                BENZER İÇERİKLER
+                            </Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                {tmdbMovie.similar.results.slice(0, 10).map((m) => (
+                                    <View key={m.id} className="mr-4 w-28">
+                                        <View className="w-28 h-40 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden mb-2 shadow-sm">
+                                            {m.poster_path ? (
+                                                <Image
+                                                    source={{ uri: `https://image.tmdb.org/t/p/w200${m.poster_path}` }}
+                                                    className="w-full h-full"
+                                                    resizeMode="cover"
+                                                />
+                                            ) : (
+                                                <View className="flex-1 items-center justify-center">
+                                                    <Icon name="movie" size={32} color="#9CA3AF" />
+                                                </View>
+                                            )}
+                                        </View>
+                                        <Text className="text-xs font-semibold text-gray-900 dark:text-white" numberOfLines={2}>{m.title}</Text>
+                                        <View className="flex-row items-center mt-1">
+                                            <Icon name="star" size={10} color="#F59E0B" />
+                                            <Text className="text-[10px] text-gray-500 ml-1">{m.vote_average.toFixed(1)}</Text>
+                                        </View>
+                                    </View>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    )}
+
+
+
+                </View>
+            </Animated.ScrollView>
         </View>
     );
 };

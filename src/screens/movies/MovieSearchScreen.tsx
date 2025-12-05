@@ -1,14 +1,16 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, ActivityIndicator, TouchableOpacity, Alert, Image, Modal } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { FlashList } from '@shopify/flash-list';
-import { pb } from '../../services/pocketbase';
-import { TMDBMovie, searchMovies, addMovie } from '../../services/movies';
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { useDebounce } from '../../hooks/useDebounce';
-
+import { useNavigation } from '@react-navigation/native';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { useDebounce } from '../../hooks/useDebounce';
+import { useSearchMovies } from '../../hooks/useTMDB';
+import { addMovieToLibrary, Movie } from '../../services/tmdb';
+import { pb } from '../../services/pocketbase';
 
 export const MovieSearchScreen = () => {
     const { t, i18n } = useTranslation();
@@ -16,19 +18,16 @@ export const MovieSearchScreen = () => {
     const debouncedQuery = useDebounce(query, 500);
     const insets = useSafeAreaInsets();
     const queryClient = useQueryClient();
+    const navigation = useNavigation<any>(); // Assuming any for now to simplify
 
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [manualTitle, setManualTitle] = useState('');
     const [manualDirector, setManualDirector] = useState('');
 
-    const { data: movies, isLoading, error } = useQuery({
-        queryKey: ['tmdbSearch', debouncedQuery],
-        queryFn: () => searchMovies(debouncedQuery),
-        enabled: debouncedQuery.length > 2,
-    });
+    const { data: searchResult, isLoading, error } = useSearchMovies(debouncedQuery);
 
     const addMovieMutation = useMutation({
-        mutationFn: addMovie,
+        mutationFn: addMovieToLibrary,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['movies'] });
             Alert.alert(t('common.success'), t('search.movieAdded', 'Film kütüphaneye eklendi'));
@@ -44,8 +43,8 @@ export const MovieSearchScreen = () => {
             const data = {
                 title: manualTitle,
                 director: manualDirector,
-                poster_url: '',
-                status: 'want_to_watch',
+                poster_path: '',
+                // status: 'want_to_watch', // Removed
                 enrichment_status: 'pending',
                 language_code: i18n.language,
                 user: pb.authStore.record?.id,
@@ -73,7 +72,7 @@ export const MovieSearchScreen = () => {
         addManualMovieMutation.mutate();
     };
 
-    const renderItem = ({ item }: { item: TMDBMovie }) => {
+    const renderItem = ({ item }: { item: Movie }) => {
         const posterUrl = item.poster_path
             ? `https://image.tmdb.org/t/p/w200${item.poster_path}`
             : null;
@@ -82,7 +81,12 @@ export const MovieSearchScreen = () => {
         const isAdding = addMovieMutation.isPending && addMovieMutation.variables?.id === item.id;
 
         return (
-            <View className="flex-row bg-white dark:bg-gray-800 p-3 mb-3 rounded-xl shadow-sm items-center">
+            <TouchableOpacity
+                className="flex-row bg-white dark:bg-gray-800 p-3 mb-3 rounded-xl shadow-sm items-center"
+                onPress={() => {
+                    navigation.navigate('MovieDetail', { tmdbId: item.id });
+                }}
+            >
                 <View className="w-16 h-24 bg-gray-200 dark:bg-gray-700 rounded-md mr-4 overflow-hidden shadow-sm">
                     {posterUrl ? (
                         <Image
@@ -127,7 +131,7 @@ export const MovieSearchScreen = () => {
                         </Text>
                     )}
                 </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
         );
     };
 
@@ -174,8 +178,8 @@ export const MovieSearchScreen = () => {
                     <ActivityIndicator size="large" color="#3B82F6" />
                 </View>
             ) : (
-                <FlashList<TMDBMovie>
-                    data={movies || []}
+                <FlashList<Movie>
+                    data={searchResult?.results || []}
                     renderItem={renderItem}
                     estimatedItemSize={120}
                     contentContainerStyle={{ padding: 16 }}

@@ -17,14 +17,15 @@ export interface Movie {
     updated: string;
     title: string;
     director: string;
-    poster_url: string;
-    status: string;
+    poster_path: string;
+    release_date: string;
     enrichment_status: 'pending' | 'processing' | 'completed' | 'failed';
     tmdb_id: string;
     description?: string;
     ai_notes?: string;
     in_library?: boolean;
     is_archived?: boolean;
+    certification?: string;
 }
 
 export const MovieLibraryScreen = () => {
@@ -52,7 +53,7 @@ export const MovieLibraryScreen = () => {
             const data = {
                 title: manualTitle,
                 director: manualDirector,
-                poster_url: '',
+                poster_path: '',
                 status: 'want_to_watch',
                 enrichment_status: 'pending',
                 language_code: i18n.language,
@@ -120,29 +121,10 @@ export const MovieLibraryScreen = () => {
         };
     }, [queryClient]);
 
-    const getStatusLabel = (status: string) => {
-        switch (status) {
-            case 'want_to_watch': return t('status.wantToWatch', 'İzlenecek');
-            case 'watching': return t('status.watching', 'İzleniyor');
-            case 'watched': return t('status.watched', 'İzlendi');
-            default: return status;
-        }
-    };
-
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'want_to_watch': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-            case 'watching': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-            case 'watched': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-            default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-        }
-    };
-
     const renderItem = ({ item }: { item: Movie }) => {
-        // Ensure HTTPS for cover URL
-        const posterUrl = item.poster_url?.startsWith('http://')
-            ? item.poster_url.replace('http://', 'https://')
-            : item.poster_url;
+        const posterUrl = item.poster_path?.startsWith('http://')
+            ? item.poster_path.replace('http://', 'https://')
+            : item.poster_path;
 
         return (
             <TouchableOpacity
@@ -178,32 +160,17 @@ export const MovieLibraryScreen = () => {
 
                     {/* Status & Icons Row */}
                     <View className="flex-row items-center mt-1 flex-wrap gap-2">
-                        {/* Status Badge */}
-                        <View className={`px-2 py-0.5 rounded-md ${getStatusColor(item.status)}`}>
-                            <Text className="text-xs font-medium">
-                                {getStatusLabel(item.status)}
-                            </Text>
-                        </View>
-
-                        {/* AI Badge */}
-                        <AIStatusBadge status={item.enrichment_status} size={16} />
-
-                        {/* Library Badge */}
-                        {item.in_library && (
-                            <View className="bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded">
-                                <Icon name="bookshelf" size={12} color="#166534" />
+                        {/* Certification Badge */}
+                        {item.certification ? (
+                            <View className="bg-transparent border border-gray-300 dark:border-gray-600 px-1.5 py-0.5 rounded">
+                                <Text className="text-[10px] font-bold text-gray-500 dark:text-gray-400">
+                                    {item.certification}
+                                </Text>
                             </View>
-                        )}
-
-                        {/* Archive Badge */}
-                        {item.is_archived && (
-                            <View className="bg-orange-100 dark:bg-orange-900 px-1.5 py-0.5 rounded">
-                                <Icon name="archive" size={12} color="#C2410C" />
-                            </View>
-                        )}
+                        ) : null}
                     </View>
-                </View>
-            </TouchableOpacity>
+                </View >
+            </TouchableOpacity >
         );
     };
 
