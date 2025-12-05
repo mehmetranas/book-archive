@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, ActivityIndicator, TouchableOpacity, Alert, Image, Modal } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { FlashList } from '@shopify/flash-list';
@@ -30,13 +30,20 @@ export const MovieSearchScreen = () => {
         mutationFn: addMovieToLibrary,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['movies'] });
-            Alert.alert(t('common.success'), t('search.movieAdded', 'Film kütüphaneye eklendi'));
+            // Alert removed for visual feedback
         },
         onError: (err: any) => {
             console.error('Add movie error:', err);
             Alert.alert(t('common.error'), t('search.addMovieError', 'Film eklenirken bir hata oluştu.'));
         }
     });
+
+    // Reset mutation state when search query changes to avoid stale success icons
+    useEffect(() => {
+        if (addMovieMutation.isSuccess || addMovieMutation.error) {
+            addMovieMutation.reset();
+        }
+    }, [debouncedQuery]);
 
     const addManualMovieMutation = useMutation({
         mutationFn: async () => {
@@ -83,6 +90,7 @@ export const MovieSearchScreen = () => {
             : null;
 
         const isAdding = addMovieMutation.isPending && addMovieMutation.variables?.id === item.id;
+        const isSuccess = addMovieMutation.isSuccess && addMovieMutation.variables?.id === item.id;
 
         return (
             <TouchableOpacity
@@ -128,16 +136,16 @@ export const MovieSearchScreen = () => {
                 </View>
 
                 <TouchableOpacity
-                    className="bg-blue-600 px-4 py-2 rounded-lg"
+                    className={`${isSuccess ? 'bg-green-500' : 'bg-blue-600'} w-10 h-10 rounded-full items-center justify-center shadow-sm`}
                     onPress={() => addMovieMutation.mutate(item)}
-                    disabled={isAdding}
+                    disabled={isAdding || isSuccess}
                 >
                     {isAdding ? (
                         <ActivityIndicator size="small" color="white" />
+                    ) : isSuccess ? (
+                        <Icon name="check" size={24} color="white" />
                     ) : (
-                        <Text className="text-white font-semibold text-sm">
-                            {t('common.add', 'Ekle')}
-                        </Text>
+                        <Icon name="plus" size={24} color="white" />
                     )}
                 </TouchableOpacity>
             </TouchableOpacity>

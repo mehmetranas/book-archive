@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert, StatusBar, Dimensions, Animated } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert, StatusBar, Dimensions, Animated, Linking, Modal } from 'react-native';
+import YoutubePlayer from "react-native-youtube-iframe";
+import { WebView } from 'react-native-webview';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -12,7 +14,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
+import { useColorScheme } from 'nativewind';
+
 export const MovieDetailScreen = () => {
+    const { colorScheme } = useColorScheme();
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
     const route = useRoute();
@@ -25,6 +30,8 @@ export const MovieDetailScreen = () => {
     const initialMovieId = params.movieId;
     const initialTmdbId = params.tmdbId;
     const initialMediaType = params.mediaType || 'movie';
+    const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+    const [imdbModalVisible, setImdbModalVisible] = useState(false);
 
     // 1. Fetch Local Movie Data (to check if saved and get details)
     const { data: localMovie, isLoading: isLocalLoading } = useQuery({
@@ -175,6 +182,28 @@ export const MovieDetailScreen = () => {
 
     const certification = localMovie?.certification || tmdbCertification;
 
+    const formatCertification = (cert?: string | null) => {
+        if (!cert) return null;
+        // US / International Codes -> Age Based Mapping
+        const mapping: Record<string, string> = {
+            'G': 'Genel İzleyici', // General Audiences
+            'PG': '7+',            // Parental Guidance Suggested
+            'PG-13': '13+',        // Parents Strongly Cautioned
+            'R': '18+',            // Restricted
+            'NC-17': '18+',        // Adults Only
+            'NR': 'Belirtilmemiş',
+            'Unrated': 'Belirtilmemiş',
+            'TV-Y': 'Genel',
+            'TV-Y7': '7+',
+            'TV-G': 'Genel',
+            'TV-PG': '7+',
+            'TV-14': '13+',
+            'TV-MA': '18+'
+        };
+
+        return mapping[cert] || cert;
+    };
+
     return (
         <View className="flex-1 bg-white dark:bg-gray-950">
             <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
@@ -259,36 +288,48 @@ export const MovieDetailScreen = () => {
                     )}
 
                     {/* Simple Gradient Simulation using Views for compatibility without rebuilding */}
-                    <View className="absolute bottom-0 w-full h-[60%] bg-black/40" />
-                    <View className="absolute bottom-0 w-full h-[30%] bg-black/60" />
-                    <View className="absolute bottom-0 w-full h-[10%] bg-black/80" />
+                    <View className="absolute bottom-0 w-full h-[80%] bg-black/20" />
+                    <View className="absolute bottom-0 w-full h-[50%] bg-black/50" />
+                    <View className="absolute bottom-0 w-full h-[20%] bg-black/80" />
 
                     {/* Note: Navbar moved outside ScrollView for sticky effect */}
 
                     {/* Bottom Title Area in Header */}
                     <View className="absolute bottom-0 left-0 right-0 px-6 pb-8">
                         {/* Tags / Meta Row */}
-                        <View className="flex-row items-center gap-3 mb-3">
+                        <View className="flex-row items-center gap-2 mb-3 flex-wrap">
                             {year && (
-                                <View className="bg-white/20 px-2 py-1 rounded-md backdrop-blur-sm">
+                                <View className="bg-black/60 px-2.5 py-1 rounded-md backdrop-blur-md border border-white/10">
                                     <Text className="text-white text-xs font-bold">{year}</Text>
                                 </View>
                             )}
                             {certification && (
-                                <View className="bg-white/20 px-2 py-1 rounded-md backdrop-blur-sm border border-white/10">
-                                    <Text className="text-white text-xs font-bold">{certification}</Text>
+                                <View className="bg-black/60 px-2.5 py-1 rounded-md backdrop-blur-md border border-white/10">
+                                    <Text className="text-white text-xs font-bold">{formatCertification(certification)}</Text>
                                 </View>
                             )}
                             {runtime && (
-                                <Text className="text-gray-300 text-xs font-medium">{runtime}</Text>
+                                <View className="bg-black/60 px-2.5 py-1 rounded-md backdrop-blur-md border border-white/10">
+                                    <Text className="text-gray-100 text-xs font-bold">{runtime}</Text>
+                                </View>
                             )}
                             {voteAverage && (
-                                <View className="flex-row items-center">
+                                <View className="flex-row items-center bg-black/60 px-2.5 py-1 rounded-md backdrop-blur-md border border-white/10">
                                     <Icon name="star" size={12} color="#F59E0B" />
                                     <Text className="text-yellow-400 text-xs font-bold ml-1">
-                                        {voteAverage} <Text className="text-gray-400 font-normal">({tmdbMovie?.vote_count})</Text>
+                                        {voteAverage} <Text className="text-gray-300 font-normal">({tmdbMovie?.vote_count})</Text>
                                     </Text>
                                 </View>
+                            )}
+
+                            {/* IMDb Button */}
+                            {tmdbMovie?.external_ids?.imdb_id && (
+                                <TouchableOpacity
+                                    onPress={() => setImdbModalVisible(true)}
+                                    className="bg-[#F5C518] px-2.5 py-1 rounded-md justify-center items-center"
+                                >
+                                    <Text className="text-black text-xs font-bold">IMDb</Text>
+                                </TouchableOpacity>
                             )}
                         </View>
 
@@ -350,6 +391,41 @@ export const MovieDetailScreen = () => {
                             {overview || t('detail.noDescription', 'Henüz bir özet yok.')}
                         </Text>
                     </View>
+
+                    {/* Videos */}
+                    {tmdbMovie?.videos?.results && tmdbMovie.videos.results.length > 0 && (
+                        <View className="mb-8">
+                            <Text className="text-sm font-bold text-gray-900 dark:text-white mb-4 opacity-70">
+                                VİDEOLAR
+                            </Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                {tmdbMovie.videos.results
+                                    .filter(v => v.site === 'YouTube')
+                                    .map((video) => (
+                                        <TouchableOpacity
+                                            key={video.id}
+                                            className="mr-4 w-48 mb-1"
+                                            onPress={() => setPlayingVideoId(video.key)}
+                                        >
+                                            <View className="w-48 h-28 bg-black rounded-lg overflow-hidden mb-2 relative justify-center items-center shadow-lg">
+                                                <Image
+                                                    source={{ uri: `https://img.youtube.com/vi/${video.key}/mqdefault.jpg` }}
+                                                    className="w-full h-full opacity-90"
+                                                    resizeMode="cover"
+                                                />
+                                                <View className="absolute bg-white/20 p-3 rounded-full backdrop-blur-sm border border-white/30">
+                                                    <Icon name="play" size={20} color="white" />
+                                                </View>
+                                            </View>
+                                            <Text className="text-xs font-semibold text-gray-900 dark:text-white leading-4" numberOfLines={2}>
+                                                {video.name}
+                                            </Text>
+                                            <Text className="text-[10px] text-gray-500 mt-0.5">{video.type}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                            </ScrollView>
+                        </View>
+                    )}
 
                     {/* Cast & Crew */}
                     {(tmdbMovie?.credits?.cast && tmdbMovie.credits.cast.length > 0 || tmdbMovie?.credits?.crew?.find(c => c.job === 'Director')) && (
@@ -440,6 +516,63 @@ export const MovieDetailScreen = () => {
 
                 </View>
             </Animated.ScrollView>
+
+            {/* Video Player Modal */}
+            <Modal
+                visible={!!playingVideoId}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setPlayingVideoId(null)}
+            >
+                <View className="flex-1 bg-black justify-center relative">
+                    <TouchableOpacity
+                        className="absolute top-12 right-6 z-50 p-2 bg-gray-800/50 rounded-full"
+                        onPress={() => setPlayingVideoId(null)}
+                    >
+                        <Icon name="close" size={30} color="white" />
+                    </TouchableOpacity>
+
+                    <View className="w-full aspect-video">
+                        <YoutubePlayer
+                            height={width * 9 / 16}
+                            play={true}
+                            videoId={playingVideoId || undefined}
+                            onChangeState={(event) => {
+                                if (event === "ended") setPlayingVideoId(null);
+                            }}
+                        />
+                    </View>
+                </View>
+            </Modal>
+
+            {/* IMDb WebView Modal */}
+            <Modal
+                visible={imdbModalVisible}
+                animationType="slide"
+                presentationStyle="pageSheet"
+                onRequestClose={() => setImdbModalVisible(false)}
+            >
+                <View className="flex-1 bg-white dark:bg-gray-900">
+                    <View className="flex-row items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                        <Text className="font-bold text-gray-900 dark:text-white">IMDb</Text>
+                        <TouchableOpacity
+                            onPress={() => setImdbModalVisible(false)}
+                            className="bg-gray-200 dark:bg-gray-700 p-1.5 rounded-full"
+                        >
+                            <Icon name="close" size={20} color={colorScheme === 'dark' ? 'white' : 'black'} />
+                        </TouchableOpacity>
+                    </View>
+                    <WebView
+                        source={{ uri: `https://www.imdb.com/title/${tmdbMovie?.external_ids?.imdb_id}/` }}
+                        startInLoadingState={true}
+                        renderLoading={() => (
+                            <View className="absolute inset-0 items-center justify-center bg-white dark:bg-gray-900">
+                                <ActivityIndicator size="large" color="#F5C518" />
+                            </View>
+                        )}
+                    />
+                </View>
+            </Modal>
         </View>
     );
 };

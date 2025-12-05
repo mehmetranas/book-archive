@@ -40,6 +40,12 @@ export interface TMDBDetailResponse extends Movie {
     production_companies: { id: number; logo_path: string | null; name: string }[];
     runtime: number;
     vote_count: number; // Added: How many people voted
+    external_ids?: {
+        imdb_id?: string;
+        facebook_id?: string;
+        instagram_id?: string;
+        twitter_id?: string;
+    };
     credits: {
         cast: {
             id: number;
@@ -141,7 +147,7 @@ export const searchMoviesProxy = (query: string, page = 1) => {
  */
 export const getMovieDetailsProxy = (tmdbId: number) => {
     return tmdbRequest<TMDBDetailResponse>(`movie/${tmdbId}`, {
-        append_to_response: "credits,videos,similar,watch/providers,release_dates", // Ekstra verileri tek seferde çek
+        append_to_response: "credits,videos,similar,watch/providers,release_dates,external_ids", // Ekstra verileri tek seferde çek
         language: "tr-TR" // Sunucuda varsayılan var ama garanti olsun
     });
 };
@@ -152,7 +158,7 @@ export const getMovieDetailsProxy = (tmdbId: number) => {
  */
 export const getTVDetailsProxy = (tmdbId: number) => {
     return tmdbRequest<TMDBDetailResponse>(`tv/${tmdbId}`, {
-        append_to_response: "credits,videos,similar,watch/providers,content_ratings", // TV için release_dates yerine content_ratings
+        append_to_response: "credits,videos,similar,watch/providers,content_ratings,external_ids", // TV için release_dates yerine content_ratings
         language: "tr-TR"
     });
 };

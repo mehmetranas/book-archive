@@ -1,4 +1,4 @@
-import PocketBase, {AsyncAuthStore} from 'pocketbase';
+import PocketBase, { AsyncAuthStore } from 'pocketbase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // AsyncStorage wrapper for PocketBase

@@ -1,16 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, ActivityIndicator, TouchableOpacity, Alert, Image, Modal } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { FlashList } from '@shopify/flash-list';
 import { useGoogleBooks, GoogleBookItem } from '../hooks/useGoogleBooks';
 import { pb } from '../services/pocketbase';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigation, useRoute } from '@react-navigation/native';
 
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const SearchScreen = () => {
     const { t, i18n } = useTranslation();
+    const navigation = useNavigation<any>();
+    const route = useRoute<any>();
     const [query, setQuery] = useState('');
     const { data: books, isLoading, error } = useGoogleBooks(query);
     const insets = useSafeAreaInsets();
@@ -19,6 +22,13 @@ export const SearchScreen = () => {
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [manualTitle, setManualTitle] = useState('');
     const [manualAuthor, setManualAuthor] = useState('');
+
+    useEffect(() => {
+        if (route.params?.scannedIsbn) {
+            setQuery(`isbn:${route.params.scannedIsbn}`);
+            navigation.setParams({ scannedIsbn: undefined });
+        }
+    }, [route.params?.scannedIsbn]);
 
     const addBookMutation = useMutation({
         mutationFn: async (book: GoogleBookItem) => {
@@ -51,7 +61,7 @@ export const SearchScreen = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['books'] });
-            Alert.alert(t('common.success'), t('search.bookAdded'));
+            // Alert removed for visual feedback
         },
         onError: (err: any) => {
             console.error('Add book error:', err);
@@ -100,6 +110,7 @@ export const SearchScreen = () => {
         const coverUrl = volumeInfo.imageLinks?.thumbnail || volumeInfo.imageLinks?.smallThumbnail;
 
         const isAdding = addBookMutation.isPending && addBookMutation.variables?.id === item.id;
+        const isSuccess = addBookMutation.isSuccess && addBookMutation.variables?.id === item.id;
 
         return (
             <View className="flex-row bg-white dark:bg-gray-800 p-4 mb-3 rounded-xl shadow-sm items-center">
@@ -125,14 +136,16 @@ export const SearchScreen = () => {
                 </View>
 
                 <TouchableOpacity
-                    className="bg-blue-600 px-4 py-2 rounded-lg"
+                    className={`${isSuccess ? 'bg-green-500' : 'bg-blue-600'} w-10 h-10 rounded-full items-center justify-center shadow-sm`}
                     onPress={() => addBookMutation.mutate(item)}
-                    disabled={isAdding}
+                    disabled={isAdding || isSuccess}
                 >
                     {isAdding ? (
                         <ActivityIndicator size="small" color="white" />
+                    ) : isSuccess ? (
+                        <Icon name="check" size={24} color="white" />
                     ) : (
-                        <Text className="text-white font-semibold">{t('common.add')}</Text>
+                        <Icon name="plus" size={24} color="white" />
                     )}
                 </TouchableOpacity>
             </View>
@@ -174,6 +187,12 @@ export const SearchScreen = () => {
                             <Icon name="close-circle" size={20} color="#9CA3AF" />
                         </TouchableOpacity>
                     )}
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('BarcodeScanner')}
+                        className="ml-2 pl-2 border-l border-gray-300 dark:border-gray-600"
+                    >
+                        <Icon name="barcode-scan" size={24} color="#6B7280" />
+                    </TouchableOpacity>
                 </View>
             </View>
 
@@ -201,7 +220,17 @@ export const SearchScreen = () => {
                                     {t('search.noResults')}
                                 </Text>
                             </View>
-                        ) : null
+                        ) : (
+                            <View className="flex-1 items-center justify-center mt-20 opacity-50">
+                                <Icon name="google" size={64} color="#4B5563" />
+                                <Text className="text-gray-500 dark:text-gray-400 text-lg font-medium mt-4">
+                                    Google Books
+                                </Text>
+                                <Text className="text-gray-400 dark:text-gray-500 text-sm mt-1">
+                                    {t('search.poweredBy', 'ile güçlendirilmiştir')}
+                                </Text>
+                            </View>
+                        )
                     }
                 />
             )}

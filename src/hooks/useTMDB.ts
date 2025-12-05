@@ -5,8 +5,6 @@ export const useSearchMovies = (query: string, page = 1) => {
     return useQuery({
         queryKey: ['tmdbSearch', query, page],
         queryFn: () => searchMoviesProxy(query, page),
-        enabled: query.length > 2,
-        placeholderData: keepPreviousData,
         staleTime: 1000 * 60 * 5, // 5 minutes
     });
 };
