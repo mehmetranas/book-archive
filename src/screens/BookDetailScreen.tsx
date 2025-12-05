@@ -8,8 +8,16 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { pb } from '../services/pocketbase';
 import { Book } from './LibraryScreen';
 import { AIStatusBadge } from '../components/AIStatusBadge';
+import { CharacterCard } from '../components/CharacterCard';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+interface GlobalBook {
+    id: string;
+    title: string;
+    character_analysis_status: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
+    character_map?: any;
+}
 
 export const BookDetailScreen = () => {
     const { t } = useTranslation();
@@ -18,6 +26,19 @@ export const BookDetailScreen = () => {
     const navigation = useNavigation();
     const queryClient = useQueryClient();
     const { bookId } = route.params as { bookId: string };
+
+    useEffect(() => {
+        const unsubscribe = pb.collection('books').subscribe(bookId, (e) => {
+            if (e.action === 'update') {
+                queryClient.invalidateQueries({ queryKey: ['book', bookId] });
+                queryClient.invalidateQueries({ queryKey: ['books'] });
+            }
+        });
+
+        return () => {
+            unsubscribe.then((unsub) => unsub());
+        };
+    }, [bookId, queryClient]);
 
     const [isEditing, setIsEditing] = useState(false);
     const [editedTitle, setEditedTitle] = useState('');
@@ -32,6 +53,57 @@ export const BookDetailScreen = () => {
             return await pb.collection('books').getOne<Book>(bookId);
         },
     });
+
+    // Global Book Logic
+    const { data: globalBook, refetch: refetchGlobalBook } = useQuery({
+        queryKey: ['global_book', book?.title],
+        queryFn: async () => {
+            const title = book?.title;
+            if (!title) return null;
+            try {
+                // Escape quotes in title to prevent filter syntax errors
+                const safeTitle = title.replace(/"/g, '\\"');
+                return await pb.collection('global_books').getFirstListItem<GlobalBook>(`title="${safeTitle}"`);
+            } catch (err: any) {
+                return null;
+            }
+        },
+        enabled: !!book?.title,
+    });
+
+    const analyzeCharacterMutation = useMutation({
+        mutationFn: async () => {
+            if (!book?.title) return;
+
+            if (globalBook) {
+                return await pb.collection('global_books').update(globalBook.id, {
+                    character_analysis_status: 'pending'
+                });
+            } else {
+                return await pb.collection('global_books').create({
+                    title: book.title,
+                    character_analysis_status: 'pending'
+                });
+            }
+        },
+        onSuccess: () => {
+            refetchGlobalBook();
+            Alert.alert(t('common.success'), t('detail.analysisStarted', 'Analiz başlatıldı.'));
+        },
+        onError: (err: any) => {
+            Alert.alert(t('common.error'), err.message);
+        }
+    });
+
+    useEffect(() => {
+        if (!book?.title) return;
+        const unsubscribe = pb.collection('global_books').subscribe('*', (e) => {
+            if (e.record.title === book.title) {
+                queryClient.invalidateQueries({ queryKey: ['global_book', book.title] });
+            }
+        });
+        return () => { unsubscribe.then((unsub) => unsub()); };
+    }, [book?.title, queryClient]);
 
     // Invalidate cache on mount to ensure fresh data
     useEffect(() => {
@@ -365,6 +437,104 @@ export const BookDetailScreen = () => {
                             {book.description || book.ai_notes || t('detail.noDescription', 'Henüz bir özet yok.')}
                         </Text>
                     )}
+                </View>
+
+                {/* Character Analysis Section */}
+                <View className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-20">
+                    <View className="flex-row items-center justify-between mb-3">
+                        <Text className="text-lg font-bold text-gray-900 dark:text-white">
+                            {t('detail.characters', 'Karakter Analizi')}
+                        </Text>
+                        <View className="bg-indigo-50 dark:bg-indigo-900/40 px-2 py-0.5 rounded">
+                            <Text className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">AI Powered</Text>
+                        </View>
+                    </View>
+
+                    {/* Status Handling */}
+                    {(() => {
+                        // Priority: Global Book -> Local Book
+                        const globalStatus = globalBook?.character_analysis_status;
+                        const hasGlobalMap = globalBook?.character_map && (
+                            Array.isArray(globalBook.character_map) ? globalBook.character_map.length > 0 :
+                                (typeof globalBook.character_map === 'string' && globalBook.character_map.length > 5)
+                        );
+
+                        const hasLocalMap = book.character_map && book.character_map.length > 0;
+
+                        // Determine effective status
+                        let status = globalStatus || 'none';
+                        let mapData = globalBook?.character_map;
+
+                        // Fallback mechanism: If global is empty/none but local has data, treat as completed using local data.
+                        if ((!status || status === 'none') && hasLocalMap) {
+                            status = 'completed';
+                            mapData = book.character_map;
+                        }
+
+                        if (status === 'none' || status === 'failed') {
+                            return (
+                                <View className="items-center py-6">
+                                    <Icon name="head-snowflake-outline" size={48} color="#E0E7FF" />
+                                    <Text className="text-center text-gray-500 dark:text-gray-400 mt-2 mb-4 px-4">
+                                        {t('detail.characterAnalysisDesc', 'Yapay zeka bu kitabı okuyarak karakter haritası çıkarabilir.')}
+                                    </Text>
+                                    <TouchableOpacity
+                                        onPress={() => analyzeCharacterMutation.mutate()}
+                                        className="bg-indigo-600 px-6 py-3 rounded-xl flex-row items-center"
+                                        disabled={analyzeCharacterMutation.isPending}
+                                    >
+                                        <Icon name="creation" size={20} color="white" className="mr-2" />
+                                        <Text className="text-white font-bold ml-2">
+                                            {status === 'failed' ? t('common.retry', 'Tekrar Dene') : t('detail.analyzeCharacters', 'Karakterleri Analiz Et')}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            );
+                        } else if (status === 'pending' || status === 'processing') {
+                            return (
+                                <View className="items-center py-8">
+                                    <ActivityIndicator size="large" color="#4F46E5" />
+                                    <Text className="text-indigo-600 dark:text-indigo-400 font-medium mt-4">
+                                        {t('detail.analyzing', 'Yapay zeka kitabı okuyor...')}
+                                    </Text>
+                                    <Text className="text-gray-400 text-xs mt-1">
+                                        {t('detail.pleaseWait', 'Lütfen bekleyin, bu işlem birkaç dakika sürebilir.')}
+                                    </Text>
+                                </View>
+                            );
+                        } else {
+                            // Completed
+                            let characters: any[] = [];
+                            if (Array.isArray(mapData)) {
+                                characters = mapData;
+                            } else if (typeof mapData === 'string') {
+                                try {
+                                    const parsed = JSON.parse(mapData);
+                                    if (Array.isArray(parsed)) characters = parsed;
+                                } catch (e) {
+                                    console.error('Character map parse error:', e);
+                                }
+                            }
+
+                            if (characters && characters.length > 0) {
+                                return (
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-4 px-4 py-2">
+                                        {characters.map((char: any, index: number) => (
+                                            <CharacterCard key={index} character={char} />
+                                        ))}
+                                    </ScrollView>
+                                );
+                            } else {
+                                return (
+                                    <View className="items-center py-4 opacity-60">
+                                        <Text className="text-gray-500 dark:text-gray-400">
+                                            {t('detail.noCharactersFound', 'Bu kitapta belirgin bir karakter bulunamadı.')}
+                                        </Text>
+                                    </View>
+                                );
+                            }
+                        }
+                    })()}
                 </View>
             </ScrollView>
         </View>

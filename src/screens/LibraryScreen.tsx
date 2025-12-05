@@ -9,6 +9,19 @@ import { pb } from '../services/pocketbase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AIStatusBadge } from '../components/AIStatusBadge';
 
+export interface Relationship {
+    target: string;
+    type: string;
+    details?: string;
+}
+
+export interface Character {
+    name: string;
+    role: string;
+    traits: string[];
+    relationships?: Relationship[];
+}
+
 export interface Book {
     id: string;
     collectionId: string;
@@ -26,6 +39,8 @@ export interface Book {
     isbn?: string;
     in_library?: boolean;
     is_archived?: boolean;
+    character_analysis_status?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
+    character_map?: Character[];
 }
 
 export const LibraryScreen = () => {
@@ -200,6 +215,13 @@ export const LibraryScreen = () => {
                         {item.is_archived && (
                             <View className="bg-orange-100 dark:bg-orange-900 px-1.5 py-0.5 rounded">
                                 <Icon name="archive" size={12} color="#C2410C" />
+                            </View>
+                        )}
+
+                        {/* Character Analysis Badge */}
+                        {item.character_analysis_status === 'completed' && (
+                            <View className="bg-indigo-100 dark:bg-indigo-900 px-1.5 py-0.5 rounded">
+                                <Icon name="head-snowflake-outline" size={12} color="#4F46E5" />
                             </View>
                         )}
                     </View>
