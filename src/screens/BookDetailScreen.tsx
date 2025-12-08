@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl } from 'react-native';
-import Share from 'react-native-share';
-import RNFetchBlob from 'rn-fetch-blob';
+import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share as RNShare, PermissionsAndroid } from 'react-native';
+import ReactNativeBlobUtil from 'react-native-blob-util';
 
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -201,7 +200,7 @@ export const BookDetailScreen = () => {
         try {
             const authorText = Array.isArray(book.authors) ? book.authors.join(', ') : book.authors;
             const message = `${book.title} - ${authorText}`;
-            await Share.open({
+            await RNShare.share({
                 message: message,
             });
         } catch (error: any) {
@@ -209,32 +208,77 @@ export const BookDetailScreen = () => {
         }
     };
 
-    const handleImageShare = async (imageUrl: string) => {
+    const handleDownloadImage = async (imageUrl: string) => {
+        if (!imageUrl) return;
+
         try {
-            // 1. Resmi indir ve Base64'e çevir
-            const res = await RNFetchBlob.config({
-                fileCache: true
-            }).fetch('GET', imageUrl);
+            const { config, fs } = ReactNativeBlobUtil;
+            const date = new Date();
+            // Galeriye kaydetmek için PictureDir kullanıyoruz
+            const fileDir = Platform.OS === 'ios' ? fs.dirs.DocumentDir : fs.dirs.PictureDir;
+            const fileName = `BookVault_Quote_${Math.floor(date.getTime() + date.getSeconds() / 2)}.jpg`;
+            const filePath = `${fileDir}/${fileName}`;
 
-            const base64Data = await res.base64();
-            const imagePath = `data:image/jpeg;base64,${base64Data}`;
+            // Android için izin kontrolü (Android 10 altı için gerekli olabilir)
+            if (Platform.OS === 'android' && Platform.Version < 29) {
+                const granted = await PermissionsAndroid.request(
+                    PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+                    {
+                        title: t('permissions.storageTitle', 'Depolama İzni'),
+                        message: t('permissions.storageMessage', 'Resmi kaydetmek için depolama izni gerekiyor.'),
+                        buttonNeutral: t('common.askLater', 'Daha Sonra Sor'),
+                        buttonNegative: t('common.cancel', 'İptal'),
+                        buttonPositive: t('common.ok', 'Tamam'),
+                    },
+                );
+                if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+                    Alert.alert(t('common.error'), t('permissions.storageDenied', 'Depolama izni reddedildi.'));
+                    return;
+                }
+            }
 
-            // 2. Paylaş
-            await Share.open({
-                title: t('detail.quoteImage', 'Alıntı Resim'),
-                message: `${book?.title} - BookVault`,
-                url: imagePath,
-                type: 'image/jpeg',
-                // Instagram Stories için özel ayarlar (Opsiyonel, genelde open ile de çalışır)
-                // social: Share.Social.INSTAGRAM
+            const configOptions = Platform.select({
+                ios: {
+                    fileCache: true,
+                    path: filePath,
+                    notification: true,
+                },
+                android: {
+                    fileCache: true,
+                    addAndroidDownloads: {
+                        useDownloadManager: true,
+                        notification: true,
+                        path: filePath,
+                        description: 'Downloading image...',
+                        title: fileName,
+                        mime: 'image/jpeg',
+                        mediaScannable: true,
+                    },
+                },
             });
 
-            // Temizlik
-            res.flush();
+            if (!configOptions) return;
+
+            config(configOptions)
+                .fetch('GET', imageUrl)
+                .then(async (res) => {
+                    if (Platform.OS === 'ios') {
+                        // iOS için galeriye kaydetme işlemi gerekebilir, şimdilik sadece indiriyor.
+                        // react-native-cameraroll gerekebilir ama basitçe paylaşıma açabiliriz veya
+                        // kullanıcıya indiğini bildirebiliriz.
+                        // RNFetchBlob.ios.openDocument(res.data); // Dosyayı açar
+                        ReactNativeBlobUtil.ios.previewDocument(res.data);
+                    }
+                    Alert.alert(t('common.success'), t('detail.imageDownloaded', 'Resim başarıyla indirildi.'));
+                })
+                .catch((errorMessage) => {
+                    console.error(errorMessage);
+                    Alert.alert(t('common.error'), t('common.downloadError', 'İndirme başarısız oldu.'));
+                });
 
         } catch (error) {
-            console.error('Image share error:', error);
-            Alert.alert(t('common.error'), t('common.shareError', 'Paylaşım sırasında hata oluştu.'));
+            console.error('Image download error:', error);
+            Alert.alert(t('common.error'), t('common.downloadError', 'İndirme başarısız oldu.'));
         }
     };
 
@@ -506,21 +550,21 @@ export const BookDetailScreen = () => {
                         </Text>
                         <View className="aspect-square w-full bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden shadow-sm">
                             <Image
-                                source={{ uri: pb.files.getUrl(book, book.generated_image) }}
+                                source={{ uri: pb.files.getURL(book, book.generated_image) }}
                                 className="w-full h-full"
                                 resizeMode="contain"
                             />
                         </View>
                         <TouchableOpacity
                             onPress={() => {
-                                const url = pb.files.getUrl(book, book.generated_image || '');
-                                handleImageShare(url);
+                                const url = pb.files.getURL(book, book.generated_image || '');
+                                handleDownloadImage(url);
                             }}
                             className="mt-3 flex-row items-center justify-center bg-gray-100 dark:bg-gray-700 py-2 rounded-lg"
                         >
-                            <Icon name="share-variant" size={18} color="#4B5563" />
+                            <Icon name="download" size={18} color="#4B5563" />
                             <Text className="ml-2 text-gray-600 dark:text-gray-300 font-medium">
-                                {t('common.share', 'Paylaş')}
+                                {t('common.download', 'İndir')}
                             </Text>
                         </TouchableOpacity>
                     </View>
