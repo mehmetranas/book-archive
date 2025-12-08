@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl } from 'react-native';
+import Share from 'react-native-share';
+import RNFetchBlob from 'rn-fetch-blob';
 
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -156,6 +158,20 @@ export const BookDetailScreen = () => {
         }
     });
 
+    const quoteMutation = useMutation({
+        mutationFn: async () => {
+            return await pb.collection('books').update(bookId, { image_gen_status: 'pending' });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['book', bookId] });
+            // No alert needed for this background action
+        },
+        onError: (err: any) => {
+            console.error('Quote generation error:', err);
+            Alert.alert(t('common.error'), t('common.error'));
+        }
+    });
+
     const handleDelete = () => {
         Alert.alert(
             t('common.delete', 'Sil'),
@@ -181,14 +197,44 @@ export const BookDetailScreen = () => {
     };
 
     const handleShare = async () => {
+        if (!book) return;
         try {
             const authorText = Array.isArray(book.authors) ? book.authors.join(', ') : book.authors;
             const message = `${book.title} - ${authorText}`;
-            await Share.share({
+            await Share.open({
                 message: message,
             });
         } catch (error: any) {
-            Alert.alert(t('common.error'), error.message);
+            console.log('Share error:', error);
+        }
+    };
+
+    const handleImageShare = async (imageUrl: string) => {
+        try {
+            // 1. Resmi indir ve Base64'e çevir
+            const res = await RNFetchBlob.config({
+                fileCache: true
+            }).fetch('GET', imageUrl);
+
+            const base64Data = await res.base64();
+            const imagePath = `data:image/jpeg;base64,${base64Data}`;
+
+            // 2. Paylaş
+            await Share.open({
+                title: t('detail.quoteImage', 'Alıntı Resim'),
+                message: `${book?.title} - BookVault`,
+                url: imagePath,
+                type: 'image/jpeg',
+                // Instagram Stories için özel ayarlar (Opsiyonel, genelde open ile de çalışır)
+                // social: Share.Social.INSTAGRAM
+            });
+
+            // Temizlik
+            res.flush();
+
+        } catch (error) {
+            console.error('Image share error:', error);
+            Alert.alert(t('common.error'), t('common.shareError', 'Paylaşım sırasında hata oluştu.'));
         }
     };
 
@@ -327,6 +373,19 @@ export const BookDetailScreen = () => {
                 </TouchableOpacity>
 
                 <TouchableOpacity
+                    onPress={() => quoteMutation.mutate()}
+                    className="items-center"
+                    disabled={quoteMutation.isPending || (book.image_gen_status === 'pending' || book.image_gen_status === 'processing')}
+                >
+                    <View className={`p-2 rounded-full mb-1 ${book.image_gen_status === 'pending' || book.image_gen_status === 'processing' ? 'bg-gray-200 dark:bg-gray-700' : 'bg-pink-100 dark:bg-pink-900'}`}>
+                        <Icon name="format-quote-close" size={20} color={book.image_gen_status === 'pending' || book.image_gen_status === 'processing' ? "#9CA3AF" : "#DB2777"} />
+                    </View>
+                    <Text className="text-xs text-gray-600 dark:text-gray-300">
+                        {t('detail.quoteImage', 'Alıntı Resim')}
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
                     onPress={handleShare}
                     className="items-center"
                 >
@@ -438,6 +497,34 @@ export const BookDetailScreen = () => {
                         </Text>
                     )}
                 </View>
+
+                {/* Quote Image Section */}
+                {book.generated_image && (
+                    <View className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-6">
+                        <Text className="text-lg font-bold text-gray-900 dark:text-white mb-3">
+                            {t('detail.quoteImage', 'Alıntı Resim')}
+                        </Text>
+                        <View className="aspect-square w-full bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden shadow-sm">
+                            <Image
+                                source={{ uri: pb.files.getUrl(book, book.generated_image) }}
+                                className="w-full h-full"
+                                resizeMode="contain"
+                            />
+                        </View>
+                        <TouchableOpacity
+                            onPress={() => {
+                                const url = pb.files.getUrl(book, book.generated_image || '');
+                                handleImageShare(url);
+                            }}
+                            className="mt-3 flex-row items-center justify-center bg-gray-100 dark:bg-gray-700 py-2 rounded-lg"
+                        >
+                            <Icon name="share-variant" size={18} color="#4B5563" />
+                            <Text className="ml-2 text-gray-600 dark:text-gray-300 font-medium">
+                                {t('common.share', 'Paylaş')}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 {/* Character Analysis Section */}
                 <View className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-20">

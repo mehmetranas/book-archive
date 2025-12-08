@@ -4,7 +4,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // AsyncStorage wrapper for PocketBase
 const store = new AsyncAuthStore({
   save: async (serialized) => AsyncStorage.setItem('pb_auth', serialized),
-  initial: AsyncStorage.getItem('pb_auth'),
   clear: async () => AsyncStorage.removeItem('pb_auth'),
 });
 

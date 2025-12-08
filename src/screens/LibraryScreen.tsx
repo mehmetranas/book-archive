@@ -41,6 +41,9 @@ export interface Book {
     is_archived?: boolean;
     character_analysis_status?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
     character_map?: Character[];
+    image_gen_status?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
+    generated_image_base64?: string;
+    generated_image?: string;
 }
 
 export const LibraryScreen = () => {

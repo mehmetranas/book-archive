@@ -41,14 +41,28 @@ export const BarcodeScannerScreen = () => {
         );
 
         if (isbnCode) {
-            setIsScanning(false);
-            Vibration.vibrate();
+            // Worklet içinde state güncellemesi yapamayız, runOnJS kullanmalıyız
+            // Ancak useState setter'ları genellikle güvenlidir.
+            // Navigation kesinlikle JS thread'de olmalı.
 
             const scannedISBN = isbnCode.value;
             console.log("Scanned ISBN:", scannedISBN);
 
-            // Navigate back to SearchScreen with the ISBN
-            navigation.navigate('Search', { scannedIsbn: scannedISBN });
+            // VisionCamera worklet'inden JS thread'ine geçiş
+            // React Native Reanimated veya Worklets Core ile runOnJS kullanılabilir
+            // Ancak burada basitçe setTimeout ile JS event loop'una atabiliriz veya doğrudan çağırabiliriz (bazı versiyonlarda crash yapar)
+
+            // En güvenli yöntem:
+            setIsScanning(false);
+
+            // Haptic feedback (JS thread)
+            try {
+                Vibration.vibrate();
+            } catch (e) { }
+
+            setTimeout(() => {
+                navigation.navigate('Search', { scannedIsbn: scannedISBN });
+            }, 100);
         }
     }, [isScanning, navigation]);
 
@@ -100,7 +114,7 @@ export const BarcodeScannerScreen = () => {
                 <Camera
                     style={StyleSheet.absoluteFill}
                     device={device}
-                    isActive={isFocused}
+                    isActive={isFocused && isScanning}
                     codeScanner={codeScanner}
                     torch={torch}
                 />
