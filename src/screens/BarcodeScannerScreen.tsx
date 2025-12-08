@@ -35,10 +35,27 @@ export const BarcodeScannerScreen = () => {
     const onCodeScanned = useCallback((codes: any[]) => {
         if (!isScanning) return;
 
-        const isbnCode = codes.find(code =>
-            (code.type === 'ean-13' || code.type === 'ean-8' || code.type === 'upc-e' || code.type === 'upc-a') &&
-            code.value
+        console.log("Scanned raw codes:", codes.map(c => `${c.type}: ${c.value}`));
+
+        // 1. Öncelik: ISBN-13 (978 veya 979 ile başlayan EAN-13)
+        let isbnCode = codes.find(code =>
+            code.type === 'ean-13' &&
+            code.value &&
+            (code.value.startsWith('978') || code.value.startsWith('979'))
         );
+
+        // 2. Öncelik: Herhangi bir EAN-13
+        if (!isbnCode) {
+            isbnCode = codes.find(code => code.type === 'ean-13' && code.value);
+        }
+
+        // 3. Öncelik: Diğer tipler (UPC, EAN-8 vb.)
+        if (!isbnCode) {
+            isbnCode = codes.find(code =>
+                (code.type === 'ean-8' || code.type === 'upc-e' || code.type === 'upc-a') &&
+                code.value
+            );
+        }
 
         if (isbnCode) {
             // Worklet içinde state güncellemesi yapamayız, runOnJS kullanmalıyız
@@ -61,7 +78,11 @@ export const BarcodeScannerScreen = () => {
             } catch (e) { }
 
             setTimeout(() => {
-                navigation.navigate('Search', { scannedIsbn: scannedISBN });
+                // Nested navigation: MainTabs -> Search
+                navigation.navigate('MainTabs', {
+                    screen: 'Search',
+                    params: { scannedIsbn: scannedISBN }
+                });
             }, 100);
         }
     }, [isScanning, navigation]);

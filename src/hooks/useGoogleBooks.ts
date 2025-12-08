@@ -37,12 +37,13 @@ export const useGoogleBooks = (query: string) => {
         queryFn: async () => {
             if (!debouncedQuery) return [];
 
+            console.log('Google Books API Request:', `https://www.googleapis.com/books/v1/volumes?q=${debouncedQuery}&maxResults=20&printType=books`);
+
             const response = await axios.get<GoogleBooksResponse>(
                 'https://www.googleapis.com/books/v1/volumes',
                 {
                     params: {
                         q: debouncedQuery,
-                        langRestrict: i18n.language,
                         maxResults: 20,
                         printType: 'books',
                     },

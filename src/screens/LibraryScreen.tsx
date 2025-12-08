@@ -44,6 +44,7 @@ export interface Book {
     image_gen_status?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
     generated_image_base64?: string;
     generated_image?: string;
+    expand?: any;
 }
 
 export const LibraryScreen = () => {

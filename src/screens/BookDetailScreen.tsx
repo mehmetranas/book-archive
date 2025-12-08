@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share as RNShare, PermissionsAndroid } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share as RNShare, PermissionsAndroid, Modal, FlatList, Dimensions, TouchableWithoutFeedback } from 'react-native';
 import ReactNativeBlobUtil from 'react-native-blob-util';
 
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -16,9 +16,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 interface GlobalBook {
     id: string;
     title: string;
+    author?: string;
     character_analysis_status: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
     character_map?: any;
 }
+
+// Extend Book interface locally if needed or update the main one
+// Assuming Book is imported, we might need to cast or extend it here
+// But better to update the main definition in LibraryScreen if possible.
+// For now, let's just use 'any' casting in the component or update the import.
+// Let's check where Book is defined. It is imported from './LibraryScreen'.
+// We should update LibraryScreen.tsx to include expand.
+
 
 export const BookDetailScreen = () => {
     const { t } = useTranslation();
@@ -47,24 +56,38 @@ export const BookDetailScreen = () => {
     const [editedIsbn, setEditedIsbn] = useState('');
     const [editedDescription, setEditedDescription] = useState('');
     const [refreshing, setRefreshing] = useState(false);
+    const [characterModalVisible, setCharacterModalVisible] = useState(false);
+    const [optionsModalVisible, setOptionsModalVisible] = useState(false);
+    const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
+    const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+    const flatListRef = useRef<FlatList>(null);
 
     const { data: book, isLoading, refetch } = useQuery({
         queryKey: ['book', bookId],
         queryFn: async () => {
-            return await pb.collection('books').getOne<Book>(bookId);
+            return await pb.collection('books').getOne<Book>(bookId, { expand: 'character_map' });
         },
     });
 
     // Global Book Logic
     const { data: globalBook, refetch: refetchGlobalBook } = useQuery({
-        queryKey: ['global_book', book?.title],
+        queryKey: ['global_book', book?.title, book?.authors],
         queryFn: async () => {
             const title = book?.title;
+            const author = book?.authors?.[0]; // İlk yazarı alıyoruz
+
             if (!title) return null;
             try {
                 // Escape quotes in title to prevent filter syntax errors
                 const safeTitle = title.replace(/"/g, '\\"');
-                return await pb.collection('global_books').getFirstListItem<GlobalBook>(`title="${safeTitle}"`);
+                let filter = `title="${safeTitle}"`;
+
+                if (author) {
+                    const safeAuthor = author.replace(/"/g, '\\"');
+                    filter += ` && author="${safeAuthor}"`;
+                }
+
+                return await pb.collection('global_books').getFirstListItem<GlobalBook>(filter);
             } catch (err: any) {
                 return null;
             }
@@ -77,18 +100,21 @@ export const BookDetailScreen = () => {
             if (!book?.title) return;
 
             if (globalBook) {
-                return await pb.collection('global_books').update(globalBook.id, {
-                    character_analysis_status: 'pending'
+                // Global kitap varsa, sadece ilişkiyi kur
+                return await pb.collection('books').update(bookId, {
+                    character_map: globalBook.id
                 });
             } else {
-                return await pb.collection('global_books').create({
-                    title: book.title,
+                // Global kitap yoksa, analiz isteği oluştur (Cron Job yakalayacak)
+                // Sadece status'u pending yapıyoruz, create işlemi yapmıyoruz.
+                return await pb.collection('books').update(bookId, {
                     character_analysis_status: 'pending'
                 });
             }
         },
         onSuccess: () => {
             refetchGlobalBook();
+            queryClient.invalidateQueries({ queryKey: ['book', bookId] });
             Alert.alert(t('common.success'), t('detail.analysisStarted', 'Analiz başlatıldı.'));
         },
         onError: (err: any) => {
@@ -214,7 +240,7 @@ export const BookDetailScreen = () => {
         try {
             const { config, fs } = ReactNativeBlobUtil;
             const date = new Date();
-            // Galeriye kaydetmek için PictureDir kullanıyoruz
+            // Galeriye kaydetmek için PictureDir kullanıyoruzhj
             const fileDir = Platform.OS === 'ios' ? fs.dirs.DocumentDir : fs.dirs.PictureDir;
             const fileName = `BookVault_Quote_${Math.floor(date.getTime() + date.getSeconds() / 2)}.jpg`;
             const filePath = `${fileDir}/${fileName}`;
@@ -329,9 +355,61 @@ export const BookDetailScreen = () => {
         );
     }
 
-    const coverUrl = book.cover_url?.startsWith('http://')
+    const coverUrl = book?.cover_url?.startsWith('http://')
         ? book.cover_url.replace('http://', 'https://')
-        : book.cover_url;
+        : book?.cover_url;
+
+    // ... (existing code) ...
+
+    // Helper to get characters
+
+    // ... (existing code) ...
+
+    // Helper to get characters
+    const getCharacters = () => {
+        // 1. Önce Relation (Global Book) üzerinden gelen veriye bak
+        const relatedGlobalBook = book?.expand?.character_map;
+
+        if (relatedGlobalBook) {
+            // Eğer ilişki varsa, veriyi oradan al
+            const mapData = relatedGlobalBook.character_map;
+            if (Array.isArray(mapData)) return mapData;
+            // String ise parse et
+            if (typeof mapData === 'string') {
+                try {
+                    const parsed = JSON.parse(mapData);
+                    if (Array.isArray(parsed)) return parsed;
+                } catch (e) { console.error('Global map parse error:', e); }
+            }
+            return null;
+        }
+
+        // 2. Yoksa Global Book sorgusundan gelen veriye bak (henüz ilişki kurulmamış olabilir)
+        if (globalBook?.character_map) {
+            const mapData = globalBook.character_map;
+            if (Array.isArray(mapData)) return mapData;
+        }
+
+        // 3. Eskiden kalma lokal veri varsa (Fallback)
+        const localMap = book.character_map as any;
+        const hasLocalMap = localMap && (Array.isArray(localMap) || (typeof localMap === 'string' && localMap.length > 0));
+
+        if (hasLocalMap && !localMap.id) { // ID kontrolü: Relation değilse
+            // Bu eski tip bir veri olabilir
+            let mapData = localMap;
+            if (Array.isArray(mapData)) return mapData;
+            if (typeof mapData === 'string') {
+                try {
+                    const parsed = JSON.parse(mapData);
+                    if (Array.isArray(parsed)) return parsed;
+                } catch (e) { }
+            }
+        }
+
+        return null;
+    };
+
+    const characters = getCharacters();
 
     return (
         <View
@@ -340,106 +418,24 @@ export const BookDetailScreen = () => {
         >
             {/* Header */}
             <View className="flex-row items-center justify-between p-4 bg-white dark:bg-gray-800 shadow-sm z-10">
-                <TouchableOpacity onPress={() => navigation.goBack()} className="p-2">
-                    <Icon name="arrow-left" size={24} color="#374151" />
+                <TouchableOpacity
+                    onPress={() => isEditing ? setIsEditing(false) : navigation.goBack()}
+                    className="p-2"
+                >
+                    <Icon name={isEditing ? "close" : "arrow-left"} size={24} color="#374151" />
                 </TouchableOpacity>
                 <Text className="text-lg font-bold text-gray-900 dark:text-white flex-1 text-center" numberOfLines={1}>
                     {book.title}
                 </Text>
-                <View className="w-10" />
-            </View>
-
-            {/* Action Bar */}
-            <View className="flex-row justify-around p-3 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                <TouchableOpacity
-                    onPress={() => isEditing ? handleSave() : setIsEditing(true)}
-                    className="items-center"
-                    disabled={updateMutation.isPending}
-                >
-                    <View className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full mb-1">
-                        <Icon name={isEditing ? "content-save" : "pencil"} size={20} color="#2563EB" />
-                    </View>
-                    <Text className="text-xs text-gray-600 dark:text-gray-300">
-                        {isEditing ? t('common.save', 'Kaydet') : t('common.edit', 'Düzenle')}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={() => updateMutation.mutate({ in_library: !book.in_library })}
-                    className="items-center"
-                    disabled={updateMutation.isPending}
-                >
-                    <View className={`p-2 rounded-full mb-1 ${book.in_library ? 'bg-green-100 dark:bg-green-900' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                        <Icon name="bookshelf" size={20} color={book.in_library ? "#166534" : "#4B5563"} />
-                    </View>
-                    <Text className="text-xs text-gray-600 dark:text-gray-300">
-                        {book.in_library ? t('detail.inLibrary', 'Kütüphanede') : t('detail.addToLibrary', 'Kütüphaneye Ekle')}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={() => updateMutation.mutate({ is_archived: !book.is_archived })}
-                    className="items-center"
-                    disabled={updateMutation.isPending}
-                >
-                    <View className={`p-2 rounded-full mb-1 ${book.is_archived ? 'bg-orange-100 dark:bg-orange-900' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                        <Icon name="archive" size={20} color={book.is_archived ? "#C2410C" : "#4B5563"} />
-                    </View>
-                    <Text className="text-xs text-gray-600 dark:text-gray-300">
-                        {book.is_archived ? t('detail.archived', 'Arşivlendi') : t('detail.archive', 'Arşivle')}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={handleDelete}
-                    className="items-center"
-                    disabled={deleteMutation.isPending}
-                >
-                    <View className="bg-red-100 dark:bg-red-900 p-2 rounded-full mb-1">
-                        <Icon name="trash-can-outline" size={20} color="#DC2626" />
-                    </View>
-                    <Text className="text-xs text-gray-600 dark:text-gray-300">
-                        {t('common.delete', 'Sil')}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={() => updateMutation.mutate({ enrichment_status: 'pending' })}
-                    className="items-center"
-                    disabled={updateMutation.isPending || (book.enrichment_status !== 'completed' && book.enrichment_status !== 'failed')}
-                >
-                    <View className={`p-2 rounded-full mb-1 ${book.enrichment_status === 'completed' || book.enrichment_status === 'failed' ? 'bg-purple-100 dark:bg-purple-900' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                        <Icon name="creation" size={20} color={book.enrichment_status === 'completed' || book.enrichment_status === 'failed' ? "#9333EA" : "#9CA3AF"} />
-                    </View>
-                    <Text className="text-xs text-gray-600 dark:text-gray-300">
-                        {t('detail.regenerateAI', 'AI Yenile')}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={() => quoteMutation.mutate()}
-                    className="items-center"
-                    disabled={quoteMutation.isPending || (book.image_gen_status === 'pending' || book.image_gen_status === 'processing')}
-                >
-                    <View className={`p-2 rounded-full mb-1 ${book.image_gen_status === 'pending' || book.image_gen_status === 'processing' ? 'bg-gray-200 dark:bg-gray-700' : 'bg-pink-100 dark:bg-pink-900'}`}>
-                        <Icon name="format-quote-close" size={20} color={book.image_gen_status === 'pending' || book.image_gen_status === 'processing' ? "#9CA3AF" : "#DB2777"} />
-                    </View>
-                    <Text className="text-xs text-gray-600 dark:text-gray-300">
-                        {t('detail.quoteImage', 'Alıntı Resim')}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={handleShare}
-                    className="items-center"
-                >
-                    <View className="bg-gray-200 dark:bg-gray-700 p-2 rounded-full mb-1">
-                        <Icon name="share-variant" size={20} color="#4B5563" />
-                    </View>
-                    <Text className="text-xs text-gray-600 dark:text-gray-300">
-                        {t('common.share', 'Paylaş')}
-                    </Text>
-                </TouchableOpacity>
+                {isEditing ? (
+                    <TouchableOpacity onPress={handleSave} className="p-2">
+                        <Icon name="check" size={24} color="#2563EB" />
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity onPress={() => setOptionsModalVisible(true)} className="p-2">
+                        <Icon name="dots-vertical" size={24} color="#374151" />
+                    </TouchableOpacity>
+                )}
             </View>
 
             <ScrollView
@@ -448,7 +444,6 @@ export const BookDetailScreen = () => {
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3B82F6" />
                 }
             >
-                {/* ... rest of the content */}
                 {/* Book Cover & Basic Info */}
                 <View className="flex-row mb-6">
                     <View className="w-32 h-48 shadow-md mr-4">
@@ -527,7 +522,14 @@ export const BookDetailScreen = () => {
                         {t('detail.description', 'Özet')}
                     </Text>
 
-                    {isEditing ? (
+                    {(book.enrichment_status === 'pending' || book.enrichment_status === 'processing') ? (
+                        <View className="items-center py-6 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-gray-700 border-dashed">
+                            <ActivityIndicator size="small" color="#9333EA" />
+                            <Text className="text-purple-600 dark:text-purple-400 font-medium mt-3 text-sm">
+                                {t('detail.aiEnriching', 'Yapay zeka özeti hazırlıyor...')}
+                            </Text>
+                        </View>
+                    ) : isEditing ? (
                         <TextInput
                             className="text-gray-600 dark:text-gray-300 text-base leading-6 min-h-[150px] border border-gray-200 rounded-lg p-2"
                             value={editedDescription}
@@ -543,30 +545,42 @@ export const BookDetailScreen = () => {
                 </View>
 
                 {/* Quote Image Section */}
-                {book.generated_image && (
+                {(book.generated_image || book.image_gen_status === 'pending' || book.image_gen_status === 'processing') && (
                     <View className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-6">
                         <Text className="text-lg font-bold text-gray-900 dark:text-white mb-3">
                             {t('detail.quoteImage', 'Alıntı Resim')}
                         </Text>
-                        <View className="aspect-square w-full bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden shadow-sm">
-                            <Image
-                                source={{ uri: pb.files.getURL(book, book.generated_image) }}
-                                className="w-full h-full"
-                                resizeMode="contain"
-                            />
-                        </View>
-                        <TouchableOpacity
-                            onPress={() => {
-                                const url = pb.files.getURL(book, book.generated_image || '');
-                                handleDownloadImage(url);
-                            }}
-                            className="mt-3 flex-row items-center justify-center bg-gray-100 dark:bg-gray-700 py-2 rounded-lg"
-                        >
-                            <Icon name="download" size={18} color="#4B5563" />
-                            <Text className="ml-2 text-gray-600 dark:text-gray-300 font-medium">
-                                {t('common.download', 'İndir')}
-                            </Text>
-                        </TouchableOpacity>
+
+                        {(book.image_gen_status === 'pending' || book.image_gen_status === 'processing') ? (
+                            <View className="aspect-square w-full bg-gray-50 dark:bg-gray-700/30 rounded-lg items-center justify-center border border-gray-200 dark:border-gray-700 border-dashed">
+                                <ActivityIndicator size="large" color="#DB2777" />
+                                <Text className="text-pink-600 dark:text-pink-400 font-medium mt-4">
+                                    {t('detail.generatingImage', 'Resim oluşturuluyor...')}
+                                </Text>
+                            </View>
+                        ) : (
+                            <>
+                                <View className="aspect-square w-full bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden shadow-sm">
+                                    <Image
+                                        source={{ uri: pb.files.getURL(book, book.generated_image || '') }}
+                                        className="w-full h-full"
+                                        resizeMode="contain"
+                                    />
+                                </View>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        const url = pb.files.getURL(book, book.generated_image || '');
+                                        handleDownloadImage(url);
+                                    }}
+                                    className="mt-3 flex-row items-center justify-center bg-gray-100 dark:bg-gray-700 py-2 rounded-lg"
+                                >
+                                    <Icon name="download" size={18} color="#4B5563" />
+                                    <Text className="ml-2 text-gray-600 dark:text-gray-300 font-medium">
+                                        {t('common.download', 'İndir')}
+                                    </Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
                     </View>
                 )}
 
@@ -581,25 +595,14 @@ export const BookDetailScreen = () => {
                         </View>
                     </View>
 
-                    {/* Status Handling */}
                     {(() => {
-                        // Priority: Global Book -> Local Book
                         const globalStatus = globalBook?.character_analysis_status;
-                        const hasGlobalMap = globalBook?.character_map && (
-                            Array.isArray(globalBook.character_map) ? globalBook.character_map.length > 0 :
-                                (typeof globalBook.character_map === 'string' && globalBook.character_map.length > 5)
-                        );
-
                         const hasLocalMap = book.character_map && book.character_map.length > 0;
-
-                        // Determine effective status
                         let status = globalStatus || 'none';
-                        let mapData = globalBook?.character_map;
 
-                        // Fallback mechanism: If global is empty/none but local has data, treat as completed using local data.
+                        // Fallback mechanism
                         if ((!status || status === 'none') && hasLocalMap) {
                             status = 'completed';
-                            mapData = book.character_map;
                         }
 
                         if (status === 'none' || status === 'failed') {
@@ -635,25 +638,35 @@ export const BookDetailScreen = () => {
                             );
                         } else {
                             // Completed
-                            let characters: any[] = [];
-                            if (Array.isArray(mapData)) {
-                                characters = mapData;
-                            } else if (typeof mapData === 'string') {
-                                try {
-                                    const parsed = JSON.parse(mapData);
-                                    if (Array.isArray(parsed)) characters = parsed;
-                                } catch (e) {
-                                    console.error('Character map parse error:', e);
-                                }
-                            }
-
                             if (characters && characters.length > 0) {
                                 return (
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-4 px-4 py-2">
-                                        {characters.map((char: any, index: number) => (
-                                            <CharacterCard key={index} character={char} />
-                                        ))}
-                                    </ScrollView>
+                                    <View>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-4 px-4 py-2">
+                                            {characters.map((char: any, index: number) => (
+                                                <TouchableOpacity
+                                                    key={index}
+                                                    onPress={() => {
+                                                        setSelectedCharacterIndex(index);
+                                                        setCharacterModalVisible(true);
+                                                    }}
+                                                >
+                                                    <CharacterCard character={char} />
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                setSelectedCharacterIndex(0);
+                                                setCharacterModalVisible(true);
+                                            }}
+                                            className="mt-3 flex-row items-center justify-center bg-indigo-50 dark:bg-indigo-900/20 py-2 rounded-lg"
+                                        >
+                                            <Icon name="fullscreen" size={18} color="#4F46E5" />
+                                            <Text className="ml-2 text-indigo-600 dark:text-indigo-400 font-medium">
+                                                {t('detail.viewFullScreen', 'Tam Ekran Görüntüle')}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 );
                             } else {
                                 return (
@@ -668,6 +681,226 @@ export const BookDetailScreen = () => {
                     })()}
                 </View>
             </ScrollView>
-        </View>
+
+            {/* Full Screen Character Modal */}
+            <Modal
+                visible={characterModalVisible}
+                animationType="slide"
+                presentationStyle="pageSheet"
+                onRequestClose={() => setCharacterModalVisible(false)}
+            >
+                <View className="flex-1 bg-gray-50 dark:bg-gray-900">
+                    {/* Modal Header */}
+                    <View className="flex-row items-center justify-between p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                        <Text className="text-lg font-bold text-gray-900 dark:text-white">
+                            {t('detail.characters', 'Karakter Analizi')}
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => setCharacterModalVisible(false)}
+                            className="bg-gray-200 dark:bg-gray-700 p-2 rounded-full"
+                        >
+                            <Icon name="close" size={20} color="#4B5563" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Character Pager */}
+                    <FlatList
+                        ref={flatListRef}
+                        data={characters || []}
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        initialScrollIndex={selectedCharacterIndex}
+                        onMomentumScrollEnd={(ev) => {
+                            const newIndex = Math.round(ev.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                            setSelectedCharacterIndex(newIndex);
+                        }}
+                        getItemLayout={(data, index) => (
+                            { length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index }
+                        )}
+                        renderItem={({ item }) => (
+                            <View style={{ width: SCREEN_WIDTH }} className="p-4">
+                                <ScrollView className="flex-1 bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6">
+                                    {/* Header: Name & Role */}
+                                    <View className="items-center mb-6 border-b border-gray-100 dark:border-gray-700 pb-6">
+                                        <View className="w-20 h-20 bg-indigo-100 dark:bg-indigo-900 rounded-full items-center justify-center mb-4">
+                                            <Text className="text-3xl font-bold text-indigo-600 dark:text-indigo-300">
+                                                {item.name.charAt(0).toUpperCase()}
+                                            </Text>
+                                        </View>
+                                        <Text className="text-3xl font-bold text-gray-900 dark:text-white text-center mb-2">
+                                            {item.name}
+                                        </Text>
+                                        <Text className="text-xl font-medium text-indigo-600 dark:text-indigo-400 text-center">
+                                            {item.role}
+                                        </Text>
+                                    </View>
+
+                                    {/* Traits */}
+                                    <View className="mb-6">
+                                        <Text className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                                            {t('character.traits', 'Özellikler')}
+                                        </Text>
+                                        <View className="flex-row flex-wrap gap-2">
+                                            {item.traits && item.traits.map((trait: string, idx: number) => (
+                                                <View key={idx} className="bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-lg">
+                                                    <Text className="text-base text-gray-700 dark:text-gray-300">
+                                                        {trait}
+                                                    </Text>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    </View>
+
+                                    {/* Relationships */}
+                                    {item.relationships && item.relationships.length > 0 && (
+                                        <View className="mb-6">
+                                            <Text className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                                                {t('character.relations', 'İlişkiler')}
+                                            </Text>
+                                            {item.relationships && item.relationships.map((rel: any, idx: number) => (
+                                                <View key={idx} className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl mb-3 border border-gray-100 dark:border-gray-700">
+                                                    <View className="flex-row items-center mb-1">
+                                                        <Icon name="account-arrow-right" size={20} color="#6366F1" className="mr-2" />
+                                                        <Text className="text-lg font-bold text-gray-800 dark:text-gray-200 ml-2">
+                                                            {rel.target}
+                                                        </Text>
+                                                    </View>
+                                                    <Text className="text-sm text-indigo-600 dark:text-indigo-400 font-medium mb-1 ml-7">
+                                                        {rel.type}
+                                                    </Text>
+                                                    {rel.details && (
+                                                        <Text className="text-gray-600 dark:text-gray-400 ml-7 leading-5">
+                                                            {rel.details}
+                                                        </Text>
+                                                    )}
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
+
+                                    {/* Bottom Spacer */}
+                                    <View className="h-10" />
+                                </ScrollView>
+                            </View>
+                        )}
+                    />
+
+                    {/* Pagination Dots */}
+                    <View className="flex-row justify-center pb-8 pt-2 bg-gray-50 dark:bg-gray-900">
+                        {characters && characters.map((_, idx) => (
+                            <TouchableOpacity
+                                key={idx}
+                                onPress={() => {
+                                    setSelectedCharacterIndex(idx);
+                                    flatListRef.current?.scrollToIndex({ index: idx, animated: true });
+                                }}
+                                className={`w-2 h-2 rounded-full mx-1 ${idx === selectedCharacterIndex ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                            />
+                        ))}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Options Bottom Sheet Modal */}
+            <Modal
+                visible={optionsModalVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setOptionsModalVisible(false)}
+            >
+                <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}
+                    activeOpacity={1}
+                    onPress={() => setOptionsModalVisible(false)}
+                >
+                    <View className="absolute bottom-0 left-0 right-0 bg-white dark:bg-gray-800 rounded-t-3xl p-6 pb-10 shadow-xl">
+                        <View className="items-center mb-4">
+                            <View className="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full" />
+                        </View>
+
+                        <Text className="text-lg font-bold text-gray-900 dark:text-white mb-4 text-center">
+                            {t('common.options', 'Seçenekler')}
+                        </Text>
+
+                        <View className="flex-row flex-wrap justify-between">
+                            {/* Edit */}
+                            <TouchableOpacity
+                                onPress={() => { setOptionsModalVisible(false); setIsEditing(true); }}
+                                className="w-[48%] bg-gray-50 dark:bg-gray-700 p-4 rounded-xl mb-3 flex-row items-center"
+                            >
+                                <Icon name="pencil" size={22} color="#2563EB" />
+                                <Text className="ml-3 font-medium text-gray-700 dark:text-gray-200">{t('common.edit', 'Düzenle')}</Text>
+                            </TouchableOpacity>
+
+                            {/* Library Toggle */}
+                            <TouchableOpacity
+                                onPress={() => { setOptionsModalVisible(false); updateMutation.mutate({ in_library: !book.in_library }); }}
+                                className="w-[48%] bg-gray-50 dark:bg-gray-700 p-4 rounded-xl mb-3 flex-row items-center"
+                            >
+                                <Icon name="bookshelf" size={22} color={book.in_library ? "#166534" : "#4B5563"} />
+                                <Text className="ml-3 font-medium text-gray-700 dark:text-gray-200">
+                                    {book.in_library ? t('detail.removeFromLib', 'Çıkar') : t('detail.addToLib', 'Ekle')}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {/* Archive Toggle */}
+                            <TouchableOpacity
+                                onPress={() => { setOptionsModalVisible(false); updateMutation.mutate({ is_archived: !book.is_archived }); }}
+                                className="w-[48%] bg-gray-50 dark:bg-gray-700 p-4 rounded-xl mb-3 flex-row items-center"
+                            >
+                                <Icon name="archive" size={22} color={book.is_archived ? "#C2410C" : "#4B5563"} />
+                                <Text className="ml-3 font-medium text-gray-700 dark:text-gray-200">
+                                    {book.is_archived ? t('detail.unarchive', 'Arşivden Al') : t('detail.archive', 'Arşivle')}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {/* Share */}
+                            <TouchableOpacity
+                                onPress={() => { setOptionsModalVisible(false); handleShare(); }}
+                                className="w-[48%] bg-gray-50 dark:bg-gray-700 p-4 rounded-xl mb-3 flex-row items-center"
+                            >
+                                <Icon name="share-variant" size={22} color="#4B5563" />
+                                <Text className="ml-3 font-medium text-gray-700 dark:text-gray-200">{t('common.share', 'Paylaş')}</Text>
+                            </TouchableOpacity>
+
+                            {/* AI Regenerate */}
+                            <TouchableOpacity
+                                onPress={() => { setOptionsModalVisible(false); updateMutation.mutate({ enrichment_status: 'pending' }); }}
+                                className="w-full bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl mb-3 flex-row items-center"
+                            >
+                                <Icon name="creation" size={22} color="#9333EA" />
+                                <Text className="ml-3 font-medium text-purple-700 dark:text-purple-300">{t('detail.regenerateAI', 'Yapay Zeka Analizini Yenile')}</Text>
+                            </TouchableOpacity>
+
+                            {/* Quote Image */}
+                            <TouchableOpacity
+                                onPress={() => { setOptionsModalVisible(false); quoteMutation.mutate(); }}
+                                className="w-full bg-pink-50 dark:bg-pink-900/20 p-4 rounded-xl mb-3 flex-row items-center"
+                            >
+                                <Icon name="format-quote-close" size={22} color="#DB2777" />
+                                <Text className="ml-3 font-medium text-pink-700 dark:text-pink-300">{t('detail.quoteImage', 'Alıntı Resmi Oluştur')}</Text>
+                            </TouchableOpacity>
+
+                            {/* Delete */}
+                            <TouchableOpacity
+                                onPress={() => { setOptionsModalVisible(false); handleDelete(); }}
+                                className="w-full bg-red-50 dark:bg-red-900/20 p-4 rounded-xl mb-3 flex-row items-center justify-center"
+                            >
+                                <Icon name="trash-can-outline" size={22} color="#DC2626" />
+                                <Text className="ml-3 font-bold text-red-600 dark:text-red-400">{t('common.delete', 'Kitabı Sil')}</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            onPress={() => setOptionsModalVisible(false)}
+                            className="mt-2 p-3 items-center"
+                        >
+                            <Text className="text-gray-500 font-medium">{t('common.cancel', 'İptal')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+        </View >
     );
 };
