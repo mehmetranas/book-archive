@@ -873,13 +873,17 @@ export const BookDetailScreen = () => {
                                 <Text className="ml-3 font-medium text-purple-700 dark:text-purple-300">{t('detail.regenerateAI', 'Yapay Zeka Analizini Yenile')}</Text>
                             </TouchableOpacity>
 
-                            {/* Quote Image */}
+                            {/* Quote Image (Disabled) */}
                             <TouchableOpacity
-                                onPress={() => { setOptionsModalVisible(false); quoteMutation.mutate(); }}
-                                className="w-full bg-pink-50 dark:bg-pink-900/20 p-4 rounded-xl mb-3 flex-row items-center"
+                                disabled={true}
+                                onPress={() => { }}
+                                className="w-full bg-gray-100 dark:bg-gray-800 p-4 rounded-xl mb-3 flex-row items-center opacity-60"
                             >
-                                <Icon name="format-quote-close" size={22} color="#DB2777" />
-                                <Text className="ml-3 font-medium text-pink-700 dark:text-pink-300">{t('detail.quoteImage', 'Alıntı Resmi Oluştur')}</Text>
+                                <Icon name="lock" size={22} color="#9CA3AF" />
+                                <Text className="ml-3 font-medium text-gray-500 dark:text-gray-400">
+                                    {t('detail.quoteImage', 'Alıntı Resmi Oluştur')}
+                                    <Text className="text-xs text-gray-400"> (Geçici Kapalı)</Text>
+                                </Text>
                             </TouchableOpacity>
 
                             {/* Delete */}

@@ -1,54 +1,57 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-console.log("--> Movie Search API (TMDB) Hazir...");
+console.log("--> TMDB Proxy API Hazir...");
 
-routerAdd("GET", "/api/movie_search", (c) => {
+routerAdd("GET", "/api/tmdb", (c) => {
+    // Manuel Auth Kontrolü
+    const authRecord = c.get("authRecord");
+    if (!authRecord) {
+        return c.json(403, { error: "Yetkisiz erişim. Lutfen giris yapiniz." });
+    }
+
     try {
-        let query = "";
-
-        // Deneme 1: Standard Echo
-        try { if (c.queryParam) query = c.queryParam("q"); } catch (e) { }
-
-        // Deneme 2: Request Object
-        if (!query) {
+        // En saglam query parametre okuma yontemi (Goja/PocketBase uyumlu)
+        const getQueryParam = (key) => {
+            try { return c.queryParam(key); } catch (e) { }
             try {
                 const req = (typeof c.request === 'function') ? c.request() : c.request;
-                if (req && req.url) {
-                    const url = req.url;
-                    if (url.query && typeof url.query === 'function') {
-                        query = url.query().get("q");
-                    } else if (url.rawQuery) {
-                        const parts = url.rawQuery.split('&');
-                        for (const p of parts) {
-                            const pair = p.split('=');
-                            if (pair[0] === 'q') {
-                                query = decodeURIComponent(pair[1] || '').replace(/\+/g, ' ');
-                                break;
-                            }
-                        }
-                    }
-                }
-            } catch (e) { console.log("Deneme 2 hatasi:", e); }
-        }
+                if (req && req.url && req.url.query) return req.url.query().get(key);
+            } catch (e) { }
+            return null;
+        };
 
-        console.log("[MovieSearch] Gelen Sorgu:", query);
-
-        if (!query) {
-            return c.json(400, { error: "Parametre 'q' (film adi) eksik." });
+        const path = getQueryParam("path");
+        if (!path) {
+            return c.json(400, { error: "Parametre 'path' eksik. Ornek: ?path=/search/movie" });
         }
 
         const apiKey = $os.getenv("TMDB_API_KEY");
         if (!apiKey) {
-            console.log("[MovieSearch] Hata: TMDB_API_KEY env tanimli degil.");
-            return c.json(500, { error: "Sunucu hatasi: API Key eksik." });
+            return c.json(500, { error: "Sunucu hatasi: TMDB_API_KEY eksik." });
         }
 
-        // TMDB Search Movie Endpoint
-        // Dil destegi icin &language=tr-TR eklenebilir.
-        const safeQuery = query.replace(/ /g, "%20");
-        const apiUrl = "https://api.themoviedb.org/3/search/movie?api_key=" + apiKey + "&query=" + safeQuery + "&language=tr-TR&page=1&include_adult=false";
+        // PocketBase request query string'ini alip TMDB'ye iletmek icin parse edelim
+        // Ancak 'path' parametresini cikarmamiz lazim.
+        let forwardQuery = "";
+        try {
+            const req = (typeof c.request === 'function') ? c.request() : c.request;
+            if (req && req.url && req.url.rawQuery) {
+                const parts = req.url.rawQuery.split('&');
+                const filteredParts = parts.filter(p => !p.startsWith("path="));
+                if (filteredParts.length > 0) {
+                    forwardQuery = "&" + filteredParts.join('&');
+                }
+            }
+        } catch (e) { console.log("Query parsing error:", e); }
 
-        console.log("[MovieSearch] URL:", apiUrl);
+        // Varsayilan dil TR olsun, eger client gondermediyse
+        if (!forwardQuery.includes("language=")) {
+            forwardQuery += "&language=tr-TR";
+        }
+
+        const apiUrl = "https://api.themoviedb.org/3" + path + "?api_key=" + apiKey + forwardQuery;
+
+        // console.log("[TMDB Proxy] URL:", apiUrl);
 
         const res = $http.send({
             url: apiUrl,
@@ -57,20 +60,18 @@ routerAdd("GET", "/api/movie_search", (c) => {
             timeout: 10
         });
 
-        if (res.statusCode !== 200) {
+        if (res.statusCode >= 400) {
             return c.json(res.statusCode, {
-                error: "TMDB API Hatasi",
+                error: "TMDB Upstream Error",
                 upstream_code: res.statusCode,
-                raw: res.raw
+                details: res.json || res.raw
             });
         }
 
-        const data = res.json;
-        // Client'a sonuclari donelim
-        return c.json(200, data.results || []);
+        return c.json(200, res.json);
 
     } catch (err) {
-        console.log("[MovieSearch] Exception:", err);
-        return c.json(500, { error: "Beklenmeyen Sunucu Hatasi", details: err.toString() });
+        console.log("[TMDB Proxy] Exception:", err);
+        return c.json(500, { error: "Proxy Hatasi", details: err.toString() });
     }
 });

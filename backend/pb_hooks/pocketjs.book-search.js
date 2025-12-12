@@ -3,6 +3,12 @@
 console.log("--> Book Search API (Google Books) Hazir...");
 
 routerAdd("GET", "/api/book_search", (c) => {
+    // Manuel Auth Kontrolü
+    const authRecord = c.get("authRecord");
+    if (!authRecord) {
+        return c.json(403, { error: "Yetkisiz erişim. Lutfen giris yapiniz." });
+    }
+
     try {
         // Debug: c objesinin yapisini gorelim
         // console.log("Keys of c:", Object.keys(c)); 
@@ -48,9 +54,9 @@ routerAdd("GET", "/api/book_search", (c) => {
         }
 
         const apiKey = $os.getenv("GOOGLE_BOOKS_KEY");
-        // encodeURIComponent Goja'da bazen sorun olabilir, basit escape yapalim
-        const safeQuery = query.replace(/ /g, "+");
 
+        // Türkçe arama sonuçları için langRestrict=tr eklenebilir ama zorunlu değil
+        const safeQuery = query.replace(/ /g, "+");
         let apiUrl = "https://www.googleapis.com/books/v1/volumes?maxResults=20&printType=books&q=" + safeQuery;
 
         if (apiKey) {
@@ -69,7 +75,6 @@ routerAdd("GET", "/api/book_search", (c) => {
         console.log("[BookSearch] API Statu Kodu:", res.statusCode);
 
         if (res.statusCode !== 200) {
-            // Hata detayini text olarak alalim
             return c.json(res.statusCode, {
                 error: "Google API Hatasi",
                 upstream_code: res.statusCode,
@@ -82,7 +87,6 @@ routerAdd("GET", "/api/book_search", (c) => {
 
     } catch (err) {
         console.log("[BookSearch] Exception:", err);
-        // Hata nesnesini string'e cevirip donelim
         return c.json(500, { error: "Beklenmeyen Sunucu Hatasi", details: err.toString() });
     }
 });
