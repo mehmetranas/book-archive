@@ -1,36 +1,47 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-console.log("--> Book Search API (Google Books) Hazir...");
+console.log("--> Book Search API (Google Books) Hazir (Safe Auth Mode)...");
 
 routerAdd("GET", "/api/book_search", (c) => {
-    // Manuel Auth Kontrolü
-    const authRecord = c.get("authRecord");
-    if (!authRecord) {
-        return c.json(403, { error: "Yetkisiz erişim. Lutfen giris yapiniz." });
+
+    // --- MANUEL TOKEN DOGRULAMA V2 ---
+    try {
+        const req = (typeof c.request === 'function') ? c.request() : c.request;
+        const authHeader = req.header.get("Authorization");
+
+        if (!authHeader) {
+            const autoUser = c.get("authRecord");
+            if (!autoUser) {
+                return c.json(403, { error: "Yetkisiz erişim. Authorization header eksik." });
+            }
+        } else {
+            const token = authHeader.replace("Bearer ", "").trim();
+            if (token) {
+                try {
+                    $app.dao().findAuthRecordByToken(token, "users");
+                } catch (e) {
+                    return c.json(403, { error: "Gecersiz token." });
+                }
+            }
+        }
+    } catch (err) {
+        console.log("Auth Check Error:", err);
+        return c.json(500, { error: "Auth kontrol hatasi", details: err.toString() });
     }
+    // ----------------------------------
 
     try {
-        // Debug: c objesinin yapisini gorelim
-        // console.log("Keys of c:", Object.keys(c)); 
-
         let query = "";
-
-        // Deneme 1: Standard Echo (c.queryParam)
         try { if (c.queryParam) query = c.queryParam("q"); } catch (e) { }
 
-        // Deneme 2: Request object (c.request().url.query().get())
         if (!query) {
             try {
-                // c.request() bir fonksiyon mu, property mi?
                 const req = (typeof c.request === 'function') ? c.request() : c.request;
                 if (req && req.url) {
-                    // req.url bir property mi?
                     const url = req.url;
-                    // url.query() bir fonksiyon mu?
                     if (url.query && typeof url.query === 'function') {
                         query = url.query().get("q");
                     } else if (url.rawQuery) {
-                        // rawQuery varsa manuel parse edelim
                         const parts = url.rawQuery.split('&');
                         for (const p of parts) {
                             const pair = p.split('=');
@@ -49,13 +60,11 @@ routerAdd("GET", "/api/book_search", (c) => {
         if (!query) {
             return c.json(400, {
                 error: "Parametre 'q' eksik.",
-                debug_keys: Object.keys(c) // Debug icin keys donelim
+                debug_keys: Object.keys(c)
             });
         }
 
         const apiKey = $os.getenv("GOOGLE_BOOKS_KEY");
-
-        // Türkçe arama sonuçları için langRestrict=tr eklenebilir ama zorunlu değil
         const safeQuery = query.replace(/ /g, "+");
         let apiUrl = "https://www.googleapis.com/books/v1/volumes?maxResults=20&printType=books&q=" + safeQuery;
 
@@ -71,8 +80,6 @@ routerAdd("GET", "/api/book_search", (c) => {
             headers: { "Content-Type": "application/json" },
             timeout: 15
         });
-
-        console.log("[BookSearch] API Statu Kodu:", res.statusCode);
 
         if (res.statusCode !== 200) {
             return c.json(res.statusCode, {

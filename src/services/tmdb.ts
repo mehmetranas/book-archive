@@ -107,12 +107,28 @@ export const tmdbRequest = async <T>(endpoint: string, params: Record<string, an
     try {
         // PocketBase SDK'sının send metodu ile POST isteği atıyoruz.
         // 'body' parametresi sunucunun beklediği JSON yapısıdır.
-        const response = await pb.send("/api/tmdb/proxy", {
-            method: "POST",
-            body: {
-                endpoint: endpoint,
-                params: params,
-            },
+        // Parametreleri manuel olarak URL'e ekleyelim (En garanti yöntem)
+        const queryParams = new URLSearchParams();
+        queryParams.append('path', endpoint);
+
+        // Diğer parametreleri ekle
+        Object.keys(params).forEach(key => {
+            if (params[key] !== undefined && params[key] !== null) {
+                queryParams.append(key, String(params[key]));
+            }
+        });
+
+        const fullUrl = `/api/tmdb?${queryParams.toString()}`;
+
+        // Auth token'i manuel ekleyelim
+        const headers: Record<string, string> = {};
+        if (pb.authStore.token) {
+            headers["Authorization"] = `Bearer ${pb.authStore.token}`;
+        }
+
+        const response = await pb.send(fullUrl, {
+            method: "GET",
+            headers: headers
         });
 
         return response as T;
