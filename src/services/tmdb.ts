@@ -246,7 +246,7 @@ export const addMovieToLibrary = async (movie: Movie | TMDBDetailResponse) => {
         tmdb_id: String(fullDetails.id),
         overview: fullDetails.overview,
         release_date: releaseDate || '',
-        poster_path: posterUrl,
+        poster_url: posterUrl,
         user: pb.authStore.record?.id,
         enrichment_status: 'pending',
         certification: certificate,

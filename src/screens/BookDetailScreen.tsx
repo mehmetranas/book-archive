@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import Toast from 'react-native-toast-message';
 import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share as RNShare, PermissionsAndroid, Modal, FlatList, Dimensions, TouchableWithoutFeedback } from 'react-native';
 import ReactNativeBlobUtil from 'react-native-blob-util';
 
@@ -115,10 +116,21 @@ export const BookDetailScreen = () => {
         onSuccess: () => {
             refetchGlobalBook();
             queryClient.invalidateQueries({ queryKey: ['book', bookId] });
-            Alert.alert(t('common.success'), t('detail.analysisStarted', 'Analiz başlatıldı.'));
+            Toast.show({
+                type: 'success',
+                text1: t('common.success'),
+                text2: t('detail.analysisStarted', 'Analiz başlatıldı.'),
+                position: 'top',
+                visibilityTime: 3000,
+            });
         },
         onError: (err: any) => {
-            Alert.alert(t('common.error'), err.message);
+            Toast.show({
+                type: 'error',
+                text1: t('common.error'),
+                text2: err.message,
+                position: 'bottom',
+            });
         }
     });
 
@@ -160,13 +172,22 @@ export const BookDetailScreen = () => {
             queryClient.invalidateQueries({ queryKey: ['book', bookId] });
             queryClient.invalidateQueries({ queryKey: ['books'] });
             setIsEditing(false);
-            Alert.alert(t('common.success'), t('detail.updateSuccess', 'Kitap güncellendi'));
+            Toast.show({
+                type: 'success',
+                text1: t('common.success'),
+                text2: t('detail.updateSuccess', 'Kitap güncellendi'),
+                position: 'top',
+            });
         },
         onError: (err: any) => {
             console.error('Update error:', err);
             const errorMessage = err?.data?.message || err?.message || t('detail.updateError', 'Güncelleme hatası');
             const validationErrors = err?.data?.data ? JSON.stringify(err.data.data, null, 2) : '';
-            Alert.alert(t('common.error'), `${errorMessage}\n${validationErrors}`);
+            Toast.show({
+                type: 'error',
+                text1: t('common.error'),
+                text2: errorMessage,
+            });
         },
     });
 
@@ -177,9 +198,18 @@ export const BookDetailScreen = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['books'] });
             navigation.goBack();
+            Toast.show({
+                type: 'success',
+                text1: t('common.success'),
+                text2: t('common.deleteSuccess', 'Kitap silindi'),
+            });
         },
         onError: (err) => {
-            Alert.alert(t('common.error'), t('common.deleteError', 'Silme işlemi başarısız oldu.'));
+            Toast.show({
+                type: 'error',
+                text1: t('common.error'),
+                text2: t('common.deleteError', 'Silme işlemi başarısız oldu.'),
+            });
         }
     });
 
@@ -193,7 +223,11 @@ export const BookDetailScreen = () => {
         },
         onError: (err: any) => {
             console.error('Quote generation error:', err);
-            Alert.alert(t('common.error'), t('common.error'));
+            Toast.show({
+                type: 'error',
+                text1: t('common.error'),
+                text2: t('common.error'),
+            });
         }
     });
 
@@ -368,10 +402,13 @@ export const BookDetailScreen = () => {
     // Helper to get characters
     const getCharacters = () => {
         // 1. Önce Relation (Global Book) üzerinden gelen veriye bak
-        const relatedGlobalBook = book?.expand?.character_map;
+        let relatedGlobalBook = book?.expand?.character_map;
+
+        if (Array.isArray(relatedGlobalBook)) {
+            relatedGlobalBook = relatedGlobalBook[0];
+        }
 
         if (relatedGlobalBook) {
-            // Eğer ilişki varsa, veriyi oradan al
             const mapData = relatedGlobalBook.character_map;
             if (Array.isArray(mapData)) return mapData;
             // String ise parse et
@@ -379,24 +416,15 @@ export const BookDetailScreen = () => {
                 try {
                     const parsed = JSON.parse(mapData);
                     if (Array.isArray(parsed)) return parsed;
-                } catch (e) { console.error('Global map parse error:', e); }
+                } catch (e) {
+                    // console.error('Global map parse error:', e); 
+                }
             }
-            return null;
         }
 
-        // 2. Yoksa Global Book sorgusundan gelen veriye bak (henüz ilişki kurulmamış olabilir)
+        // 2. Yoksa Global Book sorgusundan gelen veriye bak
         if (globalBook?.character_map) {
             const mapData = globalBook.character_map;
-            if (Array.isArray(mapData)) return mapData;
-        }
-
-        // 3. Eskiden kalma lokal veri varsa (Fallback)
-        const localMap = book.character_map as any;
-        const hasLocalMap = localMap && (Array.isArray(localMap) || (typeof localMap === 'string' && localMap.length > 0));
-
-        if (hasLocalMap && !localMap.id) { // ID kontrolü: Relation değilse
-            // Bu eski tip bir veri olabilir
-            let mapData = localMap;
             if (Array.isArray(mapData)) return mapData;
             if (typeof mapData === 'string') {
                 try {
@@ -404,6 +432,12 @@ export const BookDetailScreen = () => {
                     if (Array.isArray(parsed)) return parsed;
                 } catch (e) { }
             }
+        }
+
+        // 3. Fallback Local
+        const localMap = book?.character_map as any;
+        if (localMap && !localMap.id && typeof localMap !== 'string') {
+            if (Array.isArray(localMap)) return localMap;
         }
 
         return null;
@@ -590,9 +624,7 @@ export const BookDetailScreen = () => {
                         <Text className="text-lg font-bold text-gray-900 dark:text-white">
                             {t('detail.characters', 'Karakter Analizi')}
                         </Text>
-                        <View className="bg-indigo-50 dark:bg-indigo-900/40 px-2 py-0.5 rounded">
-                            <Text className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">AI Powered</Text>
-                        </View>
+
                     </View>
 
                     {(() => {

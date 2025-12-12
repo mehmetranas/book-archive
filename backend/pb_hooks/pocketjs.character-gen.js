@@ -60,7 +60,7 @@ cronAdd("character_analysis_job", "* * * * *", () => {
                 if (cachedBook && cachedBook.get("character_map")) {
                     console.log(`[CharJob] Cache HIT: ${title}`);
                     const freshBook = $app.findRecordById("books", bookId);
-                    freshBook.set("character_map", cachedBook.get("character_map"));
+                    freshBook.set("character_map", cachedBook.id);
                     freshBook.set("character_analysis_status", "completed");
                     $app.save(freshBook);
                     return;

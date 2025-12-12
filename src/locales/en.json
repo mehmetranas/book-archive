@@ -58,6 +58,27 @@
             "networkError": "Network error. Please check your connection."
         }
     },
+    "detail": {
+        "analysisStarted": "Analysis started.",
+        "updateSuccess": "Book updated",
+        "updateError": "Update error",
+        "titlePlaceholder": "Book Title",
+        "authorPlaceholder": "Author",
+        "description": "Description",
+        "aiEnriching": "Preparing book details...",
+        "noDescription": "No description yet.",
+        "quoteImage": "Quote Image",
+        "generatingImage": "Generating image...",
+        "changeStatus": "Change Status",
+        "regenerateAI": "Regenerate Content",
+        "aiNotes": "Analysis Notes"
+    },
+    "aiStatus": {
+        "pending": "Pending",
+        "processing": "Processing",
+        "completed": "Completed",
+        "failed": "Failed"
+    },
     "status": {
         "want_to_read": "Want to Read",
         "reading": "Reading",

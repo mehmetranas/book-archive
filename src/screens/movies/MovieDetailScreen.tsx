@@ -166,7 +166,7 @@ export const MovieDetailScreen = () => {
         : null;
     const posterPath = tmdbMovie?.poster_path
         ? `https://image.tmdb.org/t/p/w500${tmdbMovie.poster_path}`
-        : localMovie?.poster_path?.startsWith('http') ? localMovie.poster_path : null;
+        : localMovie?.poster_url?.startsWith('http') ? localMovie.poster_url : null;
 
     const runtime = tmdbMovie?.runtime ? `${Math.floor(tmdbMovie.runtime / 60)}h ${tmdbMovie.runtime % 60}m` : null;
     const year = tmdbMovie?.release_date ? tmdbMovie.release_date.split('-')[0] : (localMovie?.release_date ? localMovie.release_date.split('-')[0] : null);

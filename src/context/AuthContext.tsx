@@ -41,20 +41,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Initialize auth state from stored token
         const initAuth = async () => {
             try {
-                // If the store is not valid, try to check if we have a token in async storage
-                // This is because AsyncAuthStore might still be loading the initial promise
                 if (!pb.authStore.isValid) {
                     const storedAuth = await AsyncStorage.getItem('pb_auth');
                     if (storedAuth) {
                         const parsed = JSON.parse(storedAuth);
                         if (parsed && parsed.token) {
                             pb.authStore.save(parsed.token, parsed.model);
+
+                            if (parsed.model) {
+                                setUser(parsed.model as unknown as User);
+                            } else {
+                                // Token exists but no model - refresh to get user data
+                                try {
+                                    const refreshed = await pb.collection('users').authRefresh();
+                                    setUser(refreshed.record as unknown as User);
+                                } catch (e) {
+                                    pb.authStore.clear();
+                                }
+                            }
                         }
                     }
-                }
-
-                if (pb.authStore.isValid && pb.authStore.model) {
-                    setUser(pb.authStore.model as unknown as User);
+                } else {
+                    if (pb.authStore.model) {
+                        setUser(pb.authStore.model as unknown as User);
+                    }
                 }
             } catch (error) {
                 console.error('Auth initialization error:', error);

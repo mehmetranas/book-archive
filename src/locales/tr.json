@@ -58,6 +58,27 @@
             "networkError": "Ağ hatası. Lütfen bağlantınızı kontrol edin."
         }
     },
+    "detail": {
+        "analysisStarted": "Analiz başlatıldı.",
+        "updateSuccess": "Kitap güncellendi",
+        "updateError": "Güncelleme hatası",
+        "titlePlaceholder": "Kitap Adı",
+        "authorPlaceholder": "Yazar",
+        "description": "Özet",
+        "aiEnriching": "Kitap detayları hazırlanıyor...",
+        "noDescription": "Henüz bir özet yok.",
+        "quoteImage": "Alıntı görseli",
+        "generatingImage": "Görsel hazırlanıyor...",
+        "changeStatus": "Durumu Değiştir",
+        "regenerateAI": "İçeriği Yeniden Oluştur",
+        "aiNotes": "Analiz Notları"
+    },
+    "aiStatus": {
+        "pending": "Beklemede",
+        "processing": "Hazırlanıyor",
+        "completed": "Tamamlandı",
+        "failed": "Başarısız"
+    },
     "status": {
         "want_to_read": "Okunacak",
         "reading": "Okunuyor",

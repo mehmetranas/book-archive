@@ -43,9 +43,12 @@ const AppNavigator = () => {
     return mode === 'movies' ? <MovieNavigator /> : <MainNavigator />;
 };
 
+import Toast from 'react-native-toast-message';
+
 function App(): React.JSX.Element {
     React.useEffect(() => {
         const loadLanguage = async () => {
+            // ... existing code ...
             try {
                 const storedLang = await AsyncStorage.getItem('user-language');
                 if (storedLang) {
@@ -69,6 +72,7 @@ function App(): React.JSX.Element {
                     </ModeProvider>
                 </AuthProvider>
             </QueryClientProvider>
+            <Toast />
         </SafeAreaProvider>
     );
 }

@@ -17,7 +17,7 @@ export interface Movie {
     updated: string;
     title: string;
     director: string;
-    poster_path: string;
+    poster_url: string;
     release_date: string;
     enrichment_status: 'pending' | 'processing' | 'completed' | 'failed';
     tmdb_id: string;
@@ -54,7 +54,7 @@ export const MovieLibraryScreen = () => {
             const data = {
                 title: manualTitle,
                 director: manualDirector,
-                poster_path: '',
+                poster_url: '',
                 status: 'want_to_watch',
                 enrichment_status: 'pending',
                 language_code: i18n.language,
@@ -123,9 +123,14 @@ export const MovieLibraryScreen = () => {
     }, [queryClient]);
 
     const renderItem = ({ item }: { item: Movie }) => {
-        const posterUrl = item.poster_path?.startsWith('http://')
-            ? item.poster_path.replace('http://', 'https://')
-            : item.poster_path;
+        // Sadece gecerli URL'leri kabul et
+        let posterUrl: string | null = null;
+        if (item.poster_url && item.poster_url.startsWith('https://')) {
+            posterUrl = item.poster_url;
+        } else if (item.poster_url && item.poster_url.startsWith('http://')) {
+            posterUrl = item.poster_url.replace('http://', 'https://');
+        }
+        // "undefined" string, bos string, null/undefined -> posterUrl kalir null
 
         return (
             <TouchableOpacity

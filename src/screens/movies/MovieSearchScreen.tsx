@@ -50,7 +50,7 @@ export const MovieSearchScreen = () => {
             const data = {
                 title: manualTitle,
                 director: manualDirector,
-                poster_path: '',
+                poster_url: '',
                 // status: 'want_to_watch', // Removed
                 enrichment_status: 'pending',
                 language_code: i18n.language,
@@ -85,8 +85,11 @@ export const MovieSearchScreen = () => {
         const year = date ? date.split('-')[0] : '';
         const isTv = item.media_type === 'tv';
 
-        const posterUrl = item.poster_path
-            ? `https://image.tmdb.org/t/p/w200${item.poster_path}`
+        let pPath = item.poster_path;
+        if (pPath && !pPath.startsWith('/')) pPath = '/' + pPath;
+
+        const posterUrl = pPath
+            ? `https://image.tmdb.org/t/p/w185${pPath}`
             : null;
 
         const isAdding = addMovieMutation.isPending && addMovieMutation.variables?.id === item.id;

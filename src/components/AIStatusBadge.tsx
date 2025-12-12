@@ -19,28 +19,28 @@ export const AIStatusBadge: React.FC<AIStatusBadgeProps> = ({ status, size = 20,
                     icon: 'clock-outline',
                     color: 'text-gray-400',
                     iconColor: '#9CA3AF',
-                    label: t('aiStatus.pending', 'AI Pending')
+                    label: t('aiStatus.pending', 'Pending')
                 };
             case 'processing':
                 return {
                     icon: 'progress-clock',
                     color: 'text-blue-400',
                     iconColor: '#60A5FA',
-                    label: t('aiStatus.processing', 'AI Processing')
+                    label: t('aiStatus.processing', 'Processing')
                 };
             case 'completed':
                 return {
                     icon: 'creation',
                     color: 'text-purple-400',
                     iconColor: '#C084FC',
-                    label: t('aiStatus.completed', 'AI Completed')
+                    label: t('aiStatus.completed', 'Completed')
                 };
             case 'failed':
                 return {
                     icon: 'alert-circle-outline',
                     color: 'text-red-400',
                     iconColor: '#F87171',
-                    label: t('aiStatus.failed', 'AI Failed')
+                    label: t('aiStatus.failed', 'Failed')
                 };
             default:
                 return {
