@@ -823,11 +823,11 @@ export const BookDetailScreen = () => {
                             {t('common.options', 'Seçenekler')}
                         </Text>
 
-                        <View className="flex-row flex-wrap justify-between">
+                        <View>
                             {/* Edit */}
                             <TouchableOpacity
                                 onPress={() => { setOptionsModalVisible(false); setIsEditing(true); }}
-                                className="w-[48%] bg-gray-50 dark:bg-gray-700 p-4 rounded-xl mb-3 flex-row items-center"
+                                className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-xl mb-3 flex-row items-center"
                             >
                                 <Icon name="pencil" size={22} color="#2563EB" />
                                 <Text className="ml-3 font-medium text-gray-700 dark:text-gray-200">{t('common.edit', 'Düzenle')}</Text>
@@ -836,29 +836,29 @@ export const BookDetailScreen = () => {
                             {/* Library Toggle */}
                             <TouchableOpacity
                                 onPress={() => { setOptionsModalVisible(false); updateMutation.mutate({ in_library: !book.in_library }); }}
-                                className="w-[48%] bg-gray-50 dark:bg-gray-700 p-4 rounded-xl mb-3 flex-row items-center"
+                                className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-xl mb-3 flex-row items-center"
                             >
                                 <Icon name="bookshelf" size={22} color={book.in_library ? "#166534" : "#4B5563"} />
                                 <Text className="ml-3 font-medium text-gray-700 dark:text-gray-200">
-                                    {book.in_library ? t('detail.removeFromLib', 'Çıkar') : t('detail.addToLib', 'Ekle')}
+                                    {book.in_library ? t('detail.removeFromLib', 'Kütüphaneden Çıkar') : t('detail.addToLib', 'Kütüphaneye Ekle')}
                                 </Text>
                             </TouchableOpacity>
 
                             {/* Archive Toggle */}
                             <TouchableOpacity
                                 onPress={() => { setOptionsModalVisible(false); updateMutation.mutate({ is_archived: !book.is_archived }); }}
-                                className="w-[48%] bg-gray-50 dark:bg-gray-700 p-4 rounded-xl mb-3 flex-row items-center"
+                                className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-xl mb-3 flex-row items-center"
                             >
                                 <Icon name="archive" size={22} color={book.is_archived ? "#C2410C" : "#4B5563"} />
                                 <Text className="ml-3 font-medium text-gray-700 dark:text-gray-200">
-                                    {book.is_archived ? t('detail.unarchive', 'Arşivden Al') : t('detail.archive', 'Arşivle')}
+                                    {book.is_archived ? t('detail.unarchive', 'Arşivden Çıkar') : t('detail.archive', 'Arşivle')}
                                 </Text>
                             </TouchableOpacity>
 
                             {/* Share */}
                             <TouchableOpacity
                                 onPress={() => { setOptionsModalVisible(false); handleShare(); }}
-                                className="w-[48%] bg-gray-50 dark:bg-gray-700 p-4 rounded-xl mb-3 flex-row items-center"
+                                className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-xl mb-3 flex-row items-center"
                             >
                                 <Icon name="share-variant" size={22} color="#4B5563" />
                                 <Text className="ml-3 font-medium text-gray-700 dark:text-gray-200">{t('common.share', 'Paylaş')}</Text>
@@ -889,7 +889,7 @@ export const BookDetailScreen = () => {
                             {/* Delete */}
                             <TouchableOpacity
                                 onPress={() => { setOptionsModalVisible(false); handleDelete(); }}
-                                className="w-full bg-red-50 dark:bg-red-900/20 p-4 rounded-xl mb-3 flex-row items-center justify-center"
+                                className="w-full bg-red-50 dark:bg-red-900/20 p-4 rounded-xl flex-row items-center"
                             >
                                 <Icon name="trash-can-outline" size={22} color="#DC2626" />
                                 <Text className="ml-3 font-bold text-red-600 dark:text-red-400">{t('common.delete', 'Kitabı Sil')}</Text>
