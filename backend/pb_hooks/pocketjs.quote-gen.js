@@ -49,8 +49,10 @@ routerAdd("POST", "/api/ai/quote", (c) => {
 
             Task:
             1. Provide a profound, iconic quote from this book in TURKISH.
-               - CRITICAL: If exact text is unavailable, generate a high-quality, philosophically consistent text that perfectly mimics the author's style and book's themes.
-               - NEVER return "I cannot...", "Sorry...", or any apology. You MUST provide a quote text.
+               - CRITICAL: It MUST be SHORT and concise (maximum 20-30 words).
+               - Perfect for an Instagram caption or visual card.
+               - If exact text is unavailable, generate a high-quality, philosophically consistent text that perfectly mimics the author's style.
+               - NEVER return "I cannot...", "Sorry...", or any apology.
             
             2. Create a detailed image generation prompt in ENGLISH.
                - Visual style: Cinematic, atmospheric, high-end photography (Instagram/Pinterest style).
@@ -58,7 +60,7 @@ routerAdd("POST", "/api/ai/quote", (c) => {
 
             Return strictly in JSON format (no markdown):
             {
-              "quote": "The Turkish quote here",
+              "quote": "The Turkish quote here (max 30 words)",
               "imagePrompt": "Cinematic visual description in English"
             }
         `;
