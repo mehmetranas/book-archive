@@ -62,6 +62,8 @@ export const BookDetailScreen = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [characterModalVisible, setCharacterModalVisible] = useState(false);
     const [optionsModalVisible, setOptionsModalVisible] = useState(false);
+    const [generatedQuote, setGeneratedQuote] = useState<string | null>(null);
+    const [quoteLoading, setQuoteLoading] = useState(false);
     const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
     const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
     const flatListRef = useRef<FlatList>(null);
@@ -594,6 +596,49 @@ export const BookDetailScreen = () => {
                             ))}
                         </View>
                     )}
+
+                    {/* --- TEST: Quote Generator --- */}
+                    <View className="mt-6 border-t border-gray-100 dark:border-gray-800 pt-4">
+                        <TouchableOpacity
+                            onPress={async () => {
+                                try {
+                                    setQuoteLoading(true);
+                                    const res = await pb.send("/api/ai/quote", {
+                                        method: "POST",
+                                        body: { id: book.id }
+                                    });
+                                    setGeneratedQuote(res.quote);
+                                } catch (e) {
+                                    Alert.alert("Hata", "Alıntı üretilemedi.");
+                                } finally {
+                                    setQuoteLoading(false);
+                                }
+                            }}
+                            className="flex-row items-center justify-center bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800"
+                            disabled={quoteLoading}
+                        >
+                            {quoteLoading ? (
+                                <ActivityIndicator size="small" color="#4F46E5" />
+                            ) : (
+                                <>
+                                    <Icon name="format-quote-close" size={20} color="#4F46E5" className="mr-2" />
+                                    <Text className="text-indigo-600 dark:text-indigo-300 font-medium ml-2">
+                                        Rastgele Alıntı Üret
+                                    </Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+
+                        {generatedQuote && (
+                            <View className="mt-4 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
+                                <Icon name="format-quote-open" size={24} color="#9CA3AF" className="absolute top-2 left-2 opacity-20" />
+                                <Text className="text-gray-700 dark:text-gray-300 italic text-center text-lg font-serif px-4 py-2">
+                                    "{generatedQuote}"
+                                </Text>
+                                <Icon name="format-quote-close" size={24} color="#9CA3AF" className="absolute bottom-2 right-2 opacity-20" />
+                            </View>
+                        )}
+                    </View>
                 </View>
 
                 {/* Quote Image Section */}
