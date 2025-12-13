@@ -4,8 +4,8 @@ console.log("--> Book Enrichment Worker (AI Summary) Hazir...");
 
 // --- CRON JOB ---
 cronAdd("book_enrichment_job", "* * * * *", () => {
-    const apiKey = $os.getenv("GEMINI_KEY");
-    if (!apiKey) return;
+    // Pollinations AI (optional key, but good to have)
+    // const apiKey = $os.getenv("POLLINATION_KEY");
 
     try {
         // 1. Zenginlestirme bekleyen kitaplari bul
@@ -49,24 +49,33 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
                     - Markdown kullanma.
                 `;
 
-                // --- API Request ---
+                // --- Pollinations AI Request ---
+                const pollinationKey = $os.getenv("POLLINATION_KEY") || "";
+
+                // Pollinations GET request with prompt in URL
+                // Note: encodeURIComponent is standard JS.
+                const encodedPrompt = encodeURIComponent(promptText);
+                const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=nova-micro`;
+
                 const res = $http.send({
-                    url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + apiKey,
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: promptText }] }]
-                    }),
-                    timeout: 60
+                    url: url,
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${pollinationKey}`,
+                        "Content-Type": "application/json"
+                    },
+                    timeout: 120 // Increased timeout for generation
                 });
 
                 if (res.statusCode !== 200) throw new Error("AI API Error: " + res.raw);
 
                 // --- Response Parsing ---
-                let rawText = JSON.parse(res.raw).candidates[0].content.parts[0].text;
+                // Pollinations returns existing text directly
+                let rawText = res.raw;
+
+                // JSON blok temizligi (bazen markdown veya fazladan text gelebilir)
                 rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
 
-                // JSON blok temizligi
                 const firstBrace = rawText.indexOf('{');
                 const lastBrace = rawText.lastIndexOf('}');
                 if (firstBrace !== -1 && lastBrace !== -1) {

@@ -5,8 +5,8 @@ console.log("--> Character Analysis Worker (TURKISH STRICT) Hazir...");
 // --- CRON JOB ---
 cronAdd("character_analysis_job", "* * * * *", () => {
 
-    const apiKey = $os.getenv("GEMINI_KEY");
-    if (!apiKey) return;
+    // Pollinations AI
+    // const apiKey = $os.getenv("POLLINATION_KEY");
 
     function bytesToString(bytes) {
         if (!bytes) return "";
@@ -99,19 +99,25 @@ cronAdd("character_analysis_job", "* * * * *", () => {
                     ]
                 `;
 
+                // --- Pollinations AI Request ---
+                const pollinationKey = $os.getenv("POLLINATION_KEY") || "";
+
+                const encodedPrompt = encodeURIComponent(promptText);
+                const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=nova-micro`;
+
                 const res = $http.send({
-                    url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + apiKey,
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: promptText }] }]
-                    }),
-                    timeout: 60
+                    url: url,
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${pollinationKey}`,
+                        "Content-Type": "application/json"
+                    },
+                    timeout: 120
                 });
 
                 if (res.statusCode !== 200) throw new Error("AI Error: " + res.raw);
 
-                let rawText = JSON.parse(res.raw).candidates[0].content.parts[0].text;
+                let rawText = res.raw;
                 rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
 
                 const firstBracket = rawText.indexOf('[');
