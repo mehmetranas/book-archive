@@ -8,6 +8,42 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
     // const apiKey = $os.getenv("POLLINATION_KEY");
 
     try {
+        // 0. TEMIZLIK: 10 dakikadan uzun suredir 'processing' olanlari 'failed' yap (Timeout)
+        try {
+            // JS tarafında 10 dk öncesini hesapla
+            const d = new Date();
+            d.setMinutes(d.getMinutes() - 10);
+            const threshold = d.toISOString().replace('T', ' ').substring(0, 19) + ".000Z";
+
+            const staleRecords = $app.findRecordsByFilter(
+                "books",
+                `enrichment_status = 'processing' && updated < '${threshold}'`,
+                "-updated",
+                10
+            );
+
+            if (staleRecords.length > 0) {
+                console.log(`[BookEnrich] ${staleRecords.length} adet zaman asimina ugramis islem kontrol ediliyor...`);
+                staleRecords.forEach((rec) => {
+                    const currentNotes = rec.get("ai_notes") || "";
+
+                    // Eger zaten bir kez timeout olduysa, artik vazgec
+                    if (currentNotes.includes("Timeout")) {
+                        rec.set("enrichment_status", "none"); // Vazgec (Basa don)
+                        rec.set("ai_notes", currentNotes + " | Final Failure: Max retry reached.");
+                        console.log(`[BookEnrich] Give up on: ${rec.id}`);
+                    } else {
+                        // Ilk kez timeout oluyorsa sans ver
+                        rec.set("enrichment_status", "pending");
+                        rec.set("ai_notes", currentNotes + " [Timeout: Retrying...]");
+                    }
+                    $app.save(rec);
+                });
+            }
+        } catch (err) {
+            console.log("[BookEnrich] Cleanup Error:", err);
+        }
+
         // 1. Zenginlestirme bekleyen kitaplari bul
         // description alani bos olan veya enrichment_status 'pending' olanlar
         const records = $app.findRecordsByFilter(
@@ -19,12 +55,46 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
 
         if (records.length === 0) return;
 
+        // Byte array to string helper
+        function bytesToString(bytes) {
+            if (!bytes) return "";
+            try {
+                return decodeURIComponent(escape(String.fromCharCode.apply(null, bytes)));
+            } catch (e) {
+                return String.fromCharCode.apply(null, bytes);
+            }
+        }
+
         console.log(`[BookEnrich] ${records.length} kitap detaylandiriliyor...`);
 
         records.forEach((book) => {
             const title = book.get("title");
-            const authorRaw = book.get("authors");
-            let author = Array.isArray(authorRaw) ? authorRaw.join(", ") : String(authorRaw);
+
+            // Yazar bilgisini duzgun coz (Bazen byte array [34, 65...] gelebilir)
+            let author = "";
+            const rawAuthors = book.get("authors");
+            try {
+                if (Array.isArray(rawAuthors) && rawAuthors.length > 0 && typeof rawAuthors[0] === 'number') {
+                    // Sayi dizisi ise string'e cevir
+                    let decoded = bytesToString(rawAuthors);
+                    // Bazen ["Yazar Adi"] seklinde stringify edilmis json da olabilir
+                    try {
+                        const parsed = JSON.parse(decoded);
+                        author = Array.isArray(parsed) ? parsed.join(", ") : parsed;
+                    } catch (e) {
+                        author = decoded;
+                    }
+                } else if (Array.isArray(rawAuthors)) {
+                    author = rawAuthors.join(", ");
+                } else {
+                    author = String(rawAuthors);
+                }
+            } catch (e) {
+                author = String(rawAuthors);
+            }
+
+            // Temizlik: Koseli parantez veya tirnak kaldiysa temizle
+            author = author.replace(/[\[\]"]/g, "").trim();
 
             // Durumu guncelle
             book.set("enrichment_status", "processing");
@@ -93,9 +163,9 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
                 }
 
                 // ai_notes alanina etiketleri veya ekstra bilgileri koyabiliriz
+                // Tagleri kaydet (DB'de 'tags' adinda JSON alani olmali)
                 if (aiData.tags && Array.isArray(aiData.tags)) {
-                    // Mevcut not varsa koru, yoksa yeni ekle
-                    // book.set("ai_notes", "Tags: " + aiData.tags.join(", "));
+                    book.set("tags", aiData.tags);
                 }
 
                 book.set("enrichment_status", "completed");

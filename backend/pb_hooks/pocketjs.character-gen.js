@@ -18,6 +18,43 @@ cronAdd("character_analysis_job", "* * * * *", () => {
     }
 
     try {
+        // 0. TEMIZLIK: 10 dakikadan uzun suredir 'processing' olanlari 'failed' yap (Timeout)
+        try {
+            // JS tarafında 10 dk öncesini hesapla
+            const d = new Date();
+            d.setMinutes(d.getMinutes() - 10);
+            const threshold = d.toISOString().replace('T', ' ').substring(0, 19) + ".000Z";
+
+            const staleRecords = $app.findRecordsByFilter(
+                "books",
+                `character_analysis_status = 'processing' && updated < '${threshold}'`,
+                "-updated",
+                10
+            );
+
+            if (staleRecords.length > 0) {
+                console.log(`[CharJob] ${staleRecords.length} adet zaman asimina ugramis analiz kontrol ediliyor...`);
+                staleRecords.forEach((rec) => {
+                    // Karakter analizi icin de ai_notes alanini (veya baska bir log alanini) kullanalim
+                    // Eger ai_notes yoksa hata vermez, bos doner.
+                    let notes = "";
+                    try { notes = rec.get("ai_notes") || ""; } catch (e) { }
+
+                    if (notes.includes("CharTimeout")) {
+                        rec.set("character_analysis_status", "none");
+                        // Istersek notu guncelleyebiliriz ama cok sismesi riskli, log'a yazalim
+                        console.log(`[CharJob] Max Retries Exceeded: ${rec.id}`);
+                    } else {
+                        rec.set("character_analysis_status", "pending");
+                        try { rec.set("ai_notes", notes + " [CharTimeout]"); } catch (e) { }
+                    }
+                    $app.save(rec);
+                });
+            }
+        } catch (err) {
+            console.log("[CharJob] Cleanup Error:", err);
+        }
+
         // 1. Bekleyenleri bul
         const records = $app.findRecordsByFilter(
             "books",

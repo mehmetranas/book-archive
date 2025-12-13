@@ -581,6 +581,19 @@ export const BookDetailScreen = () => {
                             {book.description || book.ai_notes || t('detail.noDescription', 'Henüz bir özet yok.')}
                         </Text>
                     )}
+
+                    {/* Tags Section */}
+                    {book.tags && book.tags.length > 0 && (
+                        <View className="flex-row flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                            {book.tags.map((tag, index) => (
+                                <View key={index} className="bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full border border-blue-100 dark:border-blue-800">
+                                    <Text className="text-xs font-medium text-blue-600 dark:text-blue-300">
+                                        #{tag}
+                                    </Text>
+                                </View>
+                            ))}
+                        </View>
+                    )}
                 </View>
 
                 {/* Quote Image Section */}
@@ -668,9 +681,18 @@ export const BookDetailScreen = () => {
                                     <Text className="text-indigo-600 dark:text-indigo-400 font-medium mt-4">
                                         {t('detail.analyzing', 'Yapay zeka kitabı okuyor...')}
                                     </Text>
-                                    <Text className="text-gray-400 text-xs mt-1">
+                                    <Text className="text-gray-400 text-xs mt-1 text-center px-4">
                                         {t('detail.pleaseWait', 'Lütfen bekleyin, bu işlem birkaç dakika sürebilir.')}
                                     </Text>
+
+                                    <TouchableOpacity
+                                        onPress={() => analyzeCharacterMutation.mutate()}
+                                        className="mt-4 px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg"
+                                    >
+                                        <Text className="text-xs text-gray-500 dark:text-gray-400">
+                                            {t('detail.stuck', 'Takıldı mı? Tekrar Dene')}
+                                        </Text>
+                                    </TouchableOpacity>
                                 </View>
                             );
                         } else {
