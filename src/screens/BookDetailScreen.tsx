@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Toast from 'react-native-toast-message';
-import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share as RNShare, PermissionsAndroid, Modal, FlatList, Dimensions, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share, PermissionsAndroid, Modal, FlatList, Dimensions, TouchableWithoutFeedback } from 'react-native';
 import ReactNativeBlobUtil from 'react-native-blob-util';
+import ViewShot from 'react-native-view-shot';
 
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useColorScheme } from 'nativewind';
@@ -63,8 +64,14 @@ export const BookDetailScreen = () => {
     const [characterModalVisible, setCharacterModalVisible] = useState(false);
     const [optionsModalVisible, setOptionsModalVisible] = useState(false);
     const [generatedQuote, setGeneratedQuote] = useState<string | null>(null);
+    const [imagePrompt, setImagePrompt] = useState<string | null>(null);
     const [quoteLoading, setQuoteLoading] = useState(false);
-    const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
+    const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+    const [imageLoading, setImageLoading] = useState(false);
+    const viewShotRef = useRef<ViewShot>(null); // Ref eklendi
+
+    const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0); // Existing line
+
     const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
     const flatListRef = useRef<FlatList>(null);
 
@@ -74,6 +81,14 @@ export const BookDetailScreen = () => {
             return await pb.collection('books').getOne<Book>(bookId, { expand: 'character_map' });
         },
     });
+
+    // Sayfa yuklendiginde veya kitap guncellendiginde, eger kayitli resim varsa onu goster
+    useEffect(() => {
+        if (book?.generated_image) {
+            const url = `${pb.baseUrl}/api/files/${book.collectionId}/${book.id}/${book.generated_image}`;
+            setGeneratedImage(url);
+        }
+    }, [book?.generated_image, book?.collectionId, book?.id]); // Added dependencies for safety
 
     // Global Book Logic
     const { data: globalBook, refetch: refetchGlobalBook } = useQuery({
@@ -265,7 +280,7 @@ export const BookDetailScreen = () => {
         try {
             const authorText = Array.isArray(book.authors) ? book.authors.join(', ') : book.authors;
             const message = `${book.title} - ${authorText}`;
-            await RNShare.share({
+            await Share.share({
                 message: message,
             });
         } catch (error: any) {
@@ -607,7 +622,8 @@ export const BookDetailScreen = () => {
                                         method: "POST",
                                         body: { id: book.id }
                                     });
-                                    setGeneratedQuote(res.quote);
+                                    if (res.quote) setGeneratedQuote(res.quote);
+                                    if (res.imagePrompt) setImagePrompt(res.imagePrompt);
                                 } catch (e) {
                                     Alert.alert("Hata", "Alıntı üretilemedi.");
                                 } finally {
@@ -636,50 +652,145 @@ export const BookDetailScreen = () => {
                                     "{generatedQuote}"
                                 </Text>
                                 <Icon name="format-quote-close" size={24} color="#9CA3AF" className="absolute bottom-2 right-2 opacity-20" />
+
+                                {/* Image Gen Button */}
+                                {imagePrompt && (
+                                    <View className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 items-center">
+                                        <TouchableOpacity
+                                            onPress={async () => {
+                                                try {
+                                                    setImageLoading(true);
+                                                    const res = await pb.send("/api/ai/quote-image", {
+                                                        method: "POST",
+                                                        body: { id: book.id, imagePrompt: imagePrompt }
+                                                    });
+                                                    if (res.image_url) {
+                                                        const fullUrl = res.image_url.startsWith('http')
+                                                            ? res.image_url
+                                                            : `${pb.baseUrl}${res.image_url}`;
+                                                        setGeneratedImage(fullUrl);
+
+                                                        // Kitap verisini guncelle (Otomatik refresh olmayabilir)
+                                                        queryClient.invalidateQueries({ queryKey: ['book', book.id] });
+                                                    }
+                                                } catch (e) {
+                                                    Alert.alert("Hata", "Resim üretilemedi.");
+                                                } finally {
+                                                    setImageLoading(false);
+                                                }
+                                            }}
+                                            className="bg-purple-600 px-4 py-2 rounded-lg flex-row items-center"
+                                            disabled={imageLoading}
+                                        >
+                                            {imageLoading ? (
+                                                <ActivityIndicator size="small" color="white" />
+                                            ) : (
+                                                <>
+                                                    <Icon name="camera-iris" size={18} color="white" className="mr-2" />
+                                                    <Text className="text-white font-medium text-xs">Instagram Postu Üret</Text>
+                                                </>
+                                            )}
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+
+                                {/* Generated Post Preview (Image + Quote Combined) */}
+                                {generatedImage && (
+                                    <View className="mt-6">
+                                        <Text className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-3 px-1 text-center">
+                                            ✨ Instagram Post Önizleme
+                                        </Text>
+
+                                        {/* Instagram Card Container */}
+                                        <ViewShot
+                                            ref={viewShotRef}
+                                            options={{ format: "jpg", quality: 1.0 }}
+                                            style={{
+                                                width: "100%",
+                                                aspectRatio: 1,
+                                                position: "relative",
+                                                borderRadius: 12,
+                                                overflow: "hidden",
+                                                backgroundColor: "#111827",
+                                                shadowColor: "#000",
+                                                shadowOffset: { width: 0, height: 4 },
+                                                shadowOpacity: 0.3,
+                                                shadowRadius: 4,
+                                                elevation: 8
+                                            }}
+                                        >
+                                            {/* 1. Background Image */}
+                                            <Image
+                                                key={generatedImage}
+                                                source={{ uri: generatedImage }}
+                                                className="absolute w-full h-full"
+                                                resizeMode="cover"
+                                            />
+
+                                            {/* 2. Dark Overlay for Readability */}
+                                            <View className="absolute w-full h-full bg-black/40" />
+
+                                            {/* 3. Aesthetic Content Container */}
+                                            <View className="absolute w-full h-full justify-center px-8">
+
+                                                {/* Top Decoration: Line - Icon - Line */}
+                                                <View className="flex-row items-center justify-center opacity-80 mb-6">
+                                                    <View className="h-[1px] flex-1 bg-white/50" />
+                                                    <Icon name="format-quote-open" size={24} color="white" className="mx-4" />
+                                                    <View className="h-[1px] flex-1 bg-white/50" />
+                                                </View>
+
+                                                {/* Quote Text */}
+                                                <Text
+                                                    className="text-white text-xl text-center font-serif italic leading-9 shadow-sm"
+                                                    style={{
+                                                        textShadowColor: 'rgba(0,0,0,0.7)',
+                                                        textShadowOffset: { width: 1, height: 1 },
+                                                        textShadowRadius: 3
+                                                    }}
+                                                >
+                                                    {generatedQuote}
+                                                </Text>
+
+                                                {/* Bottom Decoration: Line - Author - Line */}
+                                                <View className="flex-row items-center justify-center mt-8 opacity-90">
+                                                    <View className="h-[1px] w-12 bg-white/50" />
+                                                    <Text className="text-white text-xs font-bold uppercase tracking-[3px] mx-4 text-center">
+                                                        {(typeof book.authors === 'string' ? book.authors : book.authors?.join(', '))}
+                                                    </Text>
+                                                    <View className="h-[1px] w-12 bg-white/50" />
+                                                </View>
+
+                                            </View>
+                                        </ViewShot>
+
+                                        <View className="flex-row justify-center mt-4">
+                                            <TouchableOpacity
+                                                onPress={async () => {
+                                                    try {
+                                                        const uri = await viewShotRef.current?.capture();
+                                                        if (uri) {
+                                                            await Share.share({
+                                                                url: uri,
+                                                            });
+                                                        }
+                                                    } catch (e) {
+                                                        Alert.alert("Hata", "Görüntü paylaşılamadı.");
+                                                    }
+                                                }}
+                                                className="bg-gray-900 dark:bg-gray-700 px-6 py-3 rounded-full flex-row items-center space-x-2"
+                                            >
+                                                <Icon name="share-variant" size={20} color="white" className="mr-2" />
+                                                <Text className="text-white font-medium">Paylaş / Kaydet</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                )}
                             </View>
                         )}
                     </View>
                 </View>
 
-                {/* Quote Image Section */}
-                {(book.generated_image || book.image_gen_status === 'pending' || book.image_gen_status === 'processing') && (
-                    <View className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-6">
-                        <Text className="text-lg font-bold text-gray-900 dark:text-white mb-3">
-                            {t('detail.quoteImage', 'Alıntı Resim')}
-                        </Text>
-
-                        {(book.image_gen_status === 'pending' || book.image_gen_status === 'processing') ? (
-                            <View className="aspect-square w-full bg-gray-50 dark:bg-gray-700/30 rounded-lg items-center justify-center border border-gray-200 dark:border-gray-700 border-dashed">
-                                <ActivityIndicator size="large" color="#DB2777" />
-                                <Text className="text-pink-600 dark:text-pink-400 font-medium mt-4">
-                                    {t('detail.generatingImage', 'Resim oluşturuluyor...')}
-                                </Text>
-                            </View>
-                        ) : (
-                            <>
-                                <View className="aspect-square w-full bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden shadow-sm">
-                                    <Image
-                                        source={{ uri: pb.files.getURL(book, book.generated_image || '') }}
-                                        className="w-full h-full"
-                                        resizeMode="contain"
-                                    />
-                                </View>
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        const url = pb.files.getURL(book, book.generated_image || '');
-                                        handleDownloadImage(url);
-                                    }}
-                                    className="mt-3 flex-row items-center justify-center bg-gray-100 dark:bg-gray-700 py-2 rounded-lg"
-                                >
-                                    <Icon name="download" size={18} color="#4B5563" />
-                                    <Text className="ml-2 text-gray-600 dark:text-gray-300 font-medium">
-                                        {t('common.download', 'İndir')}
-                                    </Text>
-                                </TouchableOpacity>
-                            </>
-                        )}
-                    </View>
-                )}
 
                 {/* Character Analysis Section */}
                 <View className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-20">
