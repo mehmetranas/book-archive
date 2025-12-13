@@ -24,6 +24,14 @@ interface GlobalBook {
     character_map?: any;
 }
 
+interface GeneratedContentItem {
+    id: string;
+    quote: string;
+    imagePrompt: string;
+    image: string | null;
+    createdAt: string;
+}
+
 // Extend Book interface locally if needed or update the main one
 // Assuming Book is imported, we might need to cast or extend it here
 // But better to update the main definition in LibraryScreen if possible.
@@ -63,12 +71,15 @@ export const BookDetailScreen = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [characterModalVisible, setCharacterModalVisible] = useState(false);
     const [optionsModalVisible, setOptionsModalVisible] = useState(false);
-    const [generatedQuote, setGeneratedQuote] = useState<string | null>(null);
-    const [imagePrompt, setImagePrompt] = useState<string | null>(null);
+
+    // AI Slider Stores
+    const [activeQuoteIndex, setActiveQuoteIndex] = useState(0);
     const [quoteLoading, setQuoteLoading] = useState(false);
-    const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-    const [imageLoading, setImageLoading] = useState(false);
-    const viewShotRef = useRef<ViewShot>(null); // Ref eklendi
+    const [loadingItems, setLoadingItems] = useState<Record<string, boolean>>({});
+
+    // Refs for capturing screenshots of each slide
+    const viewShotRefs = useRef<{ [key: string]: ViewShot | null }>({});
+    const flatListQuoteRef = useRef<FlatList>(null);
 
     const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0); // Existing line
 
@@ -83,12 +94,7 @@ export const BookDetailScreen = () => {
     });
 
     // Sayfa yuklendiginde veya kitap guncellendiginde, eger kayitli resim varsa onu goster
-    useEffect(() => {
-        if (book?.generated_image) {
-            const url = `${pb.baseUrl}/api/files/${book.collectionId}/${book.id}/${book.generated_image}`;
-            setGeneratedImage(url);
-        }
-    }, [book?.generated_image, book?.collectionId, book?.id]); // Added dependencies for safety
+    // Old useEffect for generatedImage removed (now using generated_content array)
 
     // Global Book Logic
     const { data: globalBook, refetch: refetchGlobalBook } = useQuery({
@@ -612,182 +618,280 @@ export const BookDetailScreen = () => {
                         </View>
                     )}
 
-                    {/* --- TEST: Quote Generator --- */}
-                    <View className="mt-6 border-t border-gray-100 dark:border-gray-800 pt-4">
-                        <TouchableOpacity
-                            onPress={async () => {
-                                try {
-                                    setQuoteLoading(true);
-                                    const res = await pb.send("/api/ai/quote", {
-                                        method: "POST",
-                                        body: { id: book.id }
-                                    });
-                                    if (res.quote) setGeneratedQuote(res.quote);
-                                    if (res.imagePrompt) setImagePrompt(res.imagePrompt);
-                                } catch (e) {
-                                    Alert.alert("Hata", "Alıntı üretilemedi.");
-                                } finally {
-                                    setQuoteLoading(false);
-                                }
-                            }}
-                            className="flex-row items-center justify-center bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800"
-                            disabled={quoteLoading}
-                        >
-                            {quoteLoading ? (
-                                <ActivityIndicator size="small" color="#4F46E5" />
-                            ) : (
-                                <>
-                                    <Icon name="format-quote-close" size={20} color="#4F46E5" className="mr-2" />
-                                    <Text className="text-indigo-600 dark:text-indigo-300 font-medium ml-2">
-                                        Rastgele Alıntı Üret
-                                    </Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
+                    {/* --- AI Content Gallery (Slider) --- */}
+                    <View className="mt-8 border-t border-gray-100 dark:border-gray-800 pt-6">
+                        <View className="flex-row items-center justify-between mb-4">
+                            <Text className="text-xl font-bold text-gray-900 dark:text-white">
+                                {t('detail.aiContent', 'AI Galeri & Üretim')}
+                            </Text>
+                            <TouchableOpacity
+                                onPress={async () => {
+                                    try {
+                                        setQuoteLoading(true);
+                                        const res = await pb.send("/api/ai/quote", { body: { id: book.id }, method: 'POST' });
+                                        console.log("Quote response:", res);
 
-                        {generatedQuote && (
-                            <View className="mt-4 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
-                                <Icon name="format-quote-open" size={24} color="#9CA3AF" className="absolute top-2 left-2 opacity-20" />
-                                <Text className="text-gray-700 dark:text-gray-300 italic text-center text-lg font-serif px-4 py-2">
-                                    "{generatedQuote}"
-                                </Text>
-                                <Icon name="format-quote-close" size={24} color="#9CA3AF" className="absolute bottom-2 right-2 opacity-20" />
+                                        queryClient.invalidateQueries({ queryKey: ['book', book.id] });
 
-                                {/* Image Gen Button */}
-                                {imagePrompt && (
-                                    <View className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 items-center">
-                                        <TouchableOpacity
-                                            onPress={async () => {
-                                                try {
-                                                    setImageLoading(true);
-                                                    const res = await pb.send("/api/ai/quote-image", {
-                                                        method: "POST",
-                                                        body: { id: book.id, imagePrompt: imagePrompt }
-                                                    });
-                                                    if (res.image_url) {
-                                                        const fullUrl = res.image_url.startsWith('http')
-                                                            ? res.image_url
-                                                            : `${pb.baseUrl}${res.image_url}`;
-                                                        setGeneratedImage(fullUrl);
+                                        // Slider'ı en son eklenen öğeye kaydır
+                                        if (res.newItem && typeof res.newItem === 'object') {
+                                            // Bekleme süresi gerekebilir, UI render olduktan sonra
+                                            setTimeout(() => {
+                                                // FlatList'i sona kaydır (Eğer ref varsa)
+                                            }, 500);
+                                        }
 
-                                                        // Kitap verisini guncelle (Otomatik refresh olmayabilir)
-                                                        queryClient.invalidateQueries({ queryKey: ['book', book.id] });
-                                                    }
-                                                } catch (e) {
-                                                    Alert.alert("Hata", "Resim üretilemedi.");
-                                                } finally {
-                                                    setImageLoading(false);
-                                                }
-                                            }}
-                                            className="bg-purple-600 px-4 py-2 rounded-lg flex-row items-center"
-                                            disabled={imageLoading}
-                                        >
-                                            {imageLoading ? (
-                                                <ActivityIndicator size="small" color="white" />
-                                            ) : (
-                                                <>
-                                                    <Icon name="camera-iris" size={18} color="white" className="mr-2" />
-                                                    <Text className="text-white font-medium text-xs">Instagram Postu Üret</Text>
-                                                </>
-                                            )}
-                                        </TouchableOpacity>
-                                    </View>
-                                )}
+                                        Toast.show({ type: 'success', text1: 'Yeni taslak eklendi!' });
 
-                                {/* Generated Post Preview (Image + Quote Combined) */}
-                                {generatedImage && (
-                                    <View className="mt-6">
-                                        <Text className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-3 px-1 text-center">
-                                            ✨ Instagram Post Önizleme
+                                        // Scroll to end (new item) after a small delay
+                                        setTimeout(() => {
+                                            // We can't easily know the exact index without data reload, bu we can try scrolling to end
+                                            // or just let user see it.
+                                            // Better: Just toast
+                                            Toast.show({ type: 'success', text1: 'Yeni taslak eklendi!' });
+                                        }, 100);
+
+                                    } catch (e: any) {
+                                        console.log("Quote Gen Error:", e);
+                                        const errorMsg = e?.data?.error || e?.message || "Bilinmeyen hata";
+                                        Alert.alert("Hata", `Alıntı üretilemedi: ${errorMsg}`);
+                                    } finally {
+                                        setQuoteLoading(false);
+                                    }
+                                }}
+                                disabled={quoteLoading}
+                                className={`px-4 py-2 rounded-full flex-row items-center ${quoteLoading ? 'bg-gray-100 dark:bg-gray-800' : 'bg-purple-600'}`}
+                            >
+                                {quoteLoading ? (
+                                    <ActivityIndicator size="small" color="#9333EA" />
+                                ) : (
+                                    <>
+                                        <Icon name="plus" size={16} color="white" className="mr-1" />
+                                        <Text className="text-white font-medium text-sm">
+                                            {t('detail.newDraft', 'Yeni')}
                                         </Text>
-
-                                        {/* Instagram Card Container */}
-                                        <ViewShot
-                                            ref={viewShotRef}
-                                            options={{ format: "jpg", quality: 1.0 }}
-                                            style={{
-                                                width: "100%",
-                                                aspectRatio: 1,
-                                                position: "relative",
-                                                borderRadius: 12,
-                                                overflow: "hidden",
-                                                backgroundColor: "#111827",
-                                                shadowColor: "#000",
-                                                shadowOffset: { width: 0, height: 4 },
-                                                shadowOpacity: 0.3,
-                                                shadowRadius: 4,
-                                                elevation: 8
-                                            }}
-                                        >
-                                            {/* 1. Background Image */}
-                                            <Image
-                                                key={generatedImage}
-                                                source={{ uri: generatedImage }}
-                                                className="absolute w-full h-full"
-                                                resizeMode="cover"
-                                            />
-
-                                            {/* 2. Dark Overlay for Readability */}
-                                            <View className="absolute w-full h-full bg-black/40" />
-
-                                            {/* 3. Aesthetic Content Container */}
-                                            <View className="absolute w-full h-full justify-center px-8">
-
-                                                {/* Top Decoration: Line - Icon - Line */}
-                                                <View className="flex-row items-center justify-center opacity-80 mb-6">
-                                                    <View className="h-[1px] flex-1 bg-white/50" />
-                                                    <Icon name="format-quote-open" size={24} color="white" className="mx-4" />
-                                                    <View className="h-[1px] flex-1 bg-white/50" />
-                                                </View>
-
-                                                {/* Quote Text */}
-                                                <Text
-                                                    className="text-white text-xl text-center font-serif italic leading-9 shadow-sm"
-                                                    style={{
-                                                        textShadowColor: 'rgba(0,0,0,0.7)',
-                                                        textShadowOffset: { width: 1, height: 1 },
-                                                        textShadowRadius: 3
-                                                    }}
-                                                >
-                                                    {generatedQuote}
-                                                </Text>
-
-                                                {/* Bottom Decoration: Line - Author - Line */}
-                                                <View className="flex-row items-center justify-center mt-8 opacity-90">
-                                                    <View className="h-[1px] w-12 bg-white/50" />
-                                                    <Text className="text-white text-xs font-bold uppercase tracking-[3px] mx-4 text-center">
-                                                        {(typeof book.authors === 'string' ? book.authors : book.authors?.join(', '))}
-                                                    </Text>
-                                                    <View className="h-[1px] w-12 bg-white/50" />
-                                                </View>
-
-                                            </View>
-                                        </ViewShot>
-
-                                        <View className="flex-row justify-center mt-4">
-                                            <TouchableOpacity
-                                                onPress={async () => {
-                                                    try {
-                                                        const uri = await viewShotRef.current?.capture();
-                                                        if (uri) {
-                                                            await Share.share({
-                                                                url: uri,
-                                                            });
-                                                        }
-                                                    } catch (e) {
-                                                        Alert.alert("Hata", "Görüntü paylaşılamadı.");
-                                                    }
-                                                }}
-                                                className="bg-gray-900 dark:bg-gray-700 px-6 py-3 rounded-full flex-row items-center space-x-2"
-                                            >
-                                                <Icon name="share-variant" size={20} color="white" className="mr-2" />
-                                                <Text className="text-white font-medium">Paylaş / Kaydet</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
+                                    </>
                                 )}
-                            </View>
-                        )}
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Content Slider */}
+                        {(() => {
+                            const contentList = ((book as any)?.generated_content || []) as GeneratedContentItem[];
+                            const reverseList = [...contentList].reverse(); // Show newest first? Or oldest? Usually newest first is better for 'Drafts'. Let's keep original order (oldest first) so user scrolls to see new ones? Or reverse?
+                            // User request: "slide olacak". Usually like a carousel.
+                            // Let's use Reverse (Newest First) so they see what they just created.
+
+                            if (contentList.length === 0) {
+                                return (
+                                    <View className="items-center justify-center py-10 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                                        <Icon name="robot-outline" size={48} color="#9CA3AF" />
+                                        <Text className="text-gray-500 dark:text-gray-400 mt-3 text-center px-6">
+                                            {t('detail.noAiContent', 'Henüz yapay zeka ile üretilmiş bir içerik yok. "Yeni" butonuna basarak başlayın.')}
+                                        </Text>
+                                    </View>
+                                );
+                            }
+
+                            return (
+                                <FlatList
+                                    ref={flatListQuoteRef}
+                                    data={reverseList}
+                                    horizontal
+                                    pagingEnabled
+                                    showsHorizontalScrollIndicator={false}
+                                    snapToInterval={SCREEN_WIDTH - 32} // Card width + margin
+                                    decelerationRate="fast"
+                                    keyExtractor={(item) => item.id}
+                                    contentContainerStyle={{ paddingHorizontal: 0 }}
+                                    onMomentumScrollEnd={(ev) => {
+                                        const newIndex = Math.round(ev.nativeEvent.contentOffset.x / (SCREEN_WIDTH - 32));
+                                        setActiveQuoteIndex(newIndex);
+                                    }}
+                                    renderItem={({ item, index }) => {
+                                        const hasImage = !!item.image;
+                                        const imageUrl = hasImage ? `${pb.baseUrl}/api/files/${book.collectionId}/${book.id}/${item.image}` : null;
+
+                                        return (
+                                            <View style={{ width: SCREEN_WIDTH - 32, marginRight: 0 }} className="mr-4">
+                                                {/* Card Container */}
+                                                <View className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm">
+
+                                                    {/* Image or Placeholder Area */}
+                                                    <ViewShot
+                                                        ref={(ref) => { viewShotRefs.current[item.id] = ref; }}
+                                                        options={{ format: "jpg", quality: 0.9 }}
+                                                        style={{ backgroundColor: isDark ? '#1F2937' : '#ffffff' }}
+                                                    >
+                                                        {/* Full Aspect Square Container */}
+                                                        <View className="relative w-full aspect-square bg-gray-900 overflow-hidden">
+                                                            {/* Background Image */}
+                                                            {hasImage && imageUrl ? (
+                                                                <Image
+                                                                    source={{ uri: imageUrl }}
+                                                                    className="w-full h-full absolute inset-0"
+                                                                    resizeMode="cover"
+                                                                />
+                                                            ) : (
+                                                                // Placeholder Gradient Background if no image
+                                                                <View className="w-full h-full absolute inset-0 bg-transparent">
+                                                                    <View className="absolute inset-0 bg-purple-900" />
+                                                                    <View className="absolute top-0 right-0 w-64 h-64 bg-purple-600 rounded-full blur-3xl opacity-50" />
+                                                                    <View className="absolute bottom-0 left-0 w-64 h-64 bg-blue-600 rounded-full blur-3xl opacity-50" />
+                                                                </View>
+                                                            )}
+
+                                                            {/* Dark Overlay for Readability */}
+                                                            <View className="absolute inset-0 bg-black/40" />
+
+                                                            {/* Inner Content Container */}
+                                                            <View className="absolute inset-0 items-center justify-center p-8">
+
+                                                                {/* Border Frame */}
+                                                                <View className="w-full h-full border border-white/30 rounded-3xl p-4 relative">
+
+                                                                    {/* Flex Container for Content */}
+                                                                    <View className="flex-1 items-center justify-center">
+
+                                                                        {/* Top Quote Icon */}
+                                                                        <Icon name="format-quote-open" size={32} color="rgba(255,255,255,0.8)" className="mb-2" />
+
+                                                                        {/* Quote Text - Dynamic Size */}
+                                                                        <Text
+                                                                            className={`text-white text-center font-serif italic shadow-sm px-2 ${item.quote.length > 300 ? 'text-xs leading-4' :
+                                                                                    item.quote.length > 200 ? 'text-sm leading-5' :
+                                                                                        item.quote.length > 100 ? 'text-lg leading-7' :
+                                                                                            'text-xl leading-8'
+                                                                                }`}
+                                                                        >
+                                                                            "{item.quote}"
+                                                                        </Text>
+
+                                                                        {/* Bottom Quote Icon */}
+                                                                        <Icon name="format-quote-close" size={32} color="rgba(255,255,255,0.8)" className="mt-2" />
+
+                                                                    </View>
+
+                                                                    {/* Author Section - Fixed at Bottom with padding */}
+                                                                    <View className="w-full flex-row items-center justify-center pt-4 pb-2">
+                                                                        <View className="h-[1px] bg-white/40 flex-1 max-w-[40px] mr-3" />
+                                                                        <Text className="text-white/90 text-[10px] font-bold uppercase tracking-[2px] text-center" numberOfLines={1}>
+                                                                            {book.authors?.[0] || 'Unknown'}
+                                                                        </Text>
+                                                                        <View className="h-[1px] bg-white/40 flex-1 max-w-[40px] ml-3" />
+                                                                    </View>
+
+                                                                </View>
+                                                            </View>
+                                                        </View>
+
+                                                        {/* No extra text view below since it's all overlay now */}
+                                                    </ViewShot>
+
+                                                    {/* Action Buttons */}
+                                                    <View className="p-4 border-t border-gray-100 dark:border-gray-700 flex-row gap-3">
+                                                        {hasImage ? (
+                                                            <TouchableOpacity
+                                                                className="flex-1 bg-gray-900 dark:bg-white py-3 rounded-xl flex-row items-center justify-center shadow-sm"
+                                                                onPress={async () => {
+                                                                    try {
+                                                                        const uri = await viewShotRefs.current[item.id]?.capture();
+                                                                        if (uri) {
+                                                                            await Share.share({ url: uri });
+                                                                        }
+                                                                    } catch (e) {
+                                                                        console.log(e);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <Icon name="share-variant" size={18} color={isDark ? "black" : "white"} className="mr-2" />
+                                                                <Text className={`font-bold ${isDark ? 'text-gray-900' : 'text-white'}`}>
+                                                                    {t('common.share', 'Paylaş')}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        ) : (
+                                                            <TouchableOpacity
+                                                                className={`flex-1 py-3 rounded-xl flex-row items-center justify-center shadow-lg dark:shadow-none ${loadingItems[item.id] ? 'bg-gray-100 dark:bg-gray-800' : 'bg-purple-600 shadow-purple-200'}`}
+                                                                disabled={loadingItems[item.id]}
+                                                                onPress={async () => {
+                                                                    const imagePrompt = item.imagePrompt;
+                                                                    if (!imagePrompt) return;
+
+                                                                    try {
+                                                                        // Set loading only for this item
+                                                                        setLoadingItems(prev => ({ ...prev, [item.id]: true }));
+                                                                        console.log("Requesting image for content:", item.id);
+
+                                                                        const res = await pb.send("/api/ai/quote-image-v2", {
+                                                                            body: {
+                                                                                id: book.id,
+                                                                                contentId: item.id
+                                                                            },
+                                                                            method: 'POST'
+                                                                        });
+                                                                        console.log("Image Gen Res:", res);
+
+                                                                        // 1. Manuel Cache Update (Instant Feedback)
+                                                                        if (res.fileName) {
+                                                                            queryClient.setQueryData(['book', book.id], (oldData: any) => {
+                                                                                if (!oldData) return oldData;
+                                                                                // Clone generated_content
+                                                                                const newContent = oldData.generated_content.map((c: any) => {
+                                                                                    if (c.id === item.id) {
+                                                                                        return { ...c, image: res.fileName };
+                                                                                    }
+                                                                                    return c;
+                                                                                });
+                                                                                return { ...oldData, generated_content: newContent };
+                                                                            });
+                                                                        }
+
+                                                                        // 2. Invalidate to be sure (background refetch)
+                                                                        queryClient.invalidateQueries({ queryKey: ['book', book.id] });
+                                                                        Toast.show({ type: 'success', text1: 'Görsel oluşturuldu!' });
+
+                                                                    } catch (e: any) {
+                                                                        console.error("Quote Image Error:", e);
+                                                                        const errMsg = e?.data?.error || e?.message || JSON.stringify(e);
+                                                                        Alert.alert("Hata", `Görsel üretilemedi: ${errMsg}`);
+                                                                    } finally {
+                                                                        // Clear loading
+                                                                        setLoadingItems(prev => ({ ...prev, [item.id]: false }));
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {loadingItems[item.id] ? (
+                                                                    <>
+                                                                        <ActivityIndicator size="small" color="#9333EA" className="mr-2" />
+                                                                        <Text className="text-gray-500 dark:text-gray-400 font-medium text-xs">
+                                                                            İşleniyor...
+                                                                        </Text>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Icon name="palette" size={18} color="white" className="mr-2" />
+                                                                        <Text className="font-bold text-white">
+                                                                            {t('detail.visualize', 'Görselleştir')}
+                                                                        </Text>
+                                                                    </>
+                                                                )}
+                                                            </TouchableOpacity>
+                                                        )}
+                                                    </View>
+                                                </View>
+
+                                                {/* Page Indicator */}
+                                                <View className="flex-row justify-center mt-4 mb-2">
+                                                    <Text className="text-xs text-gray-400 font-medium">
+                                                        {index + 1} / {reverseList.length}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        );
+                                    }}
+                                />
+                            );
+                        })()}
                     </View>
                 </View>
 

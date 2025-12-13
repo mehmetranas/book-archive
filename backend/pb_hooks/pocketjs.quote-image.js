@@ -1,89 +1,161 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-routerAdd("POST", "/api/ai/quote-image", (c) => {
-    console.log("[QuoteImage/Direct] İstek geldi...");
+routerAdd("POST", "/api/ai/quote-image-v2", (c) => {
+    // Helper function inside handler scope
+    function utf8ArrayToString(aBytes) {
+        var out = "";
+        var i = 0;
+        var len = aBytes.length;
+        while (i < len) {
+            var c = aBytes[i++];
+            if (c >> 4 < 8) out += String.fromCharCode(c);
+            else if (c >> 4 < 14) out += String.fromCharCode(((c & 0x1F) << 6) | (aBytes[i++] & 0x3F));
+            else out += String.fromCharCode(((c & 0x0F) << 12) | ((aBytes[i++] & 0x3F) << 6) | ((aBytes[i++] & 0x3F) << 0));
+        }
+        return out;
+    }
+
+    const debugLogs = [];
+    const log = (m) => { console.log(m); debugLogs.push(m); };
 
     try {
-        const data = c.requestInfo().body;
-        const bookId = data.id;
-        // Frontend artik hazır Ingilizce prompt gonderiyor
-        const imagePrompt = data.imagePrompt || "";
+        const body = c.requestInfo().body;
+        const bookId = body.id;
+        const contentId = body.contentId;
+        log(`[Start] Book: ${bookId}, Content: ${contentId}`);
 
-        if (!bookId) {
-            return c.json(400, { error: "bookId is required" });
+        if (!bookId) return c.json(400, { error: "bookId is required" });
+        if (!contentId) return c.json(400, { error: "contentId is required" });
+
+        let book;
+        try {
+            book = $app.findRecordById("books", bookId);
+            log(`[Book] Found: ${book.id}`);
+        } catch (e) {
+            log(`[Book] Not found: ${e}`);
+            return c.json(404, { error: "Book not found", debugLogs });
         }
-        if (!imagePrompt) {
-            return c.json(400, { error: "imagePrompt is required" });
-        }
 
-        const book = $app.findRecordById("books", bookId);
+        // 1. JSON History'i Oku
+        let contentList = [];
+        try {
+            const raw = book.get("generated_content");
+            log(`[History] Raw type: ${typeof raw}`);
+            if (raw) {
+                let jsonStr = "";
+                try { jsonStr = JSON.stringify(raw); } catch (e) { }
 
-        // Prompt Temizligi (Cok Agresif)
-        // Sadece harf, rakam ve bosluk kalsin. Noktalama isaretleri URL'i bozabilir.
-        const safePrompt = imagePrompt
-            .replace(/[^a-zA-Z0-9\s,]/g, "") // Sadece alfanumerik ve virgul virgul
-            .replace(/\s+/g, " ") // Fazla bosluklari sil
-            .trim()
-            .substring(0, 300); // 300 karakter limit
+                let temp = null;
+                try { temp = JSON.parse(jsonStr); } catch (e) { }
 
-        console.log(`[QuoteImage/Direct] Prompt: ${safePrompt}`);
+                if (Array.isArray(temp) && temp.length > 0 && typeof temp[0] === 'number') {
+                    try {
+                        const decodedStr = utf8ArrayToString(temp);
+                        contentList = JSON.parse(decodedStr);
+                        log(`[History] Decoded Byte Array. Len: ${contentList.length}`);
+                    } catch (decodeErr) {
+                        log(`[History] Decode Err: ${decodeErr}`);
+                        contentList = [];
+                    }
+                } else if (Array.isArray(temp)) {
+                    contentList = temp;
+                } else if (temp) {
+                    contentList = [temp];
+                }
+            }
+        } catch (e) { log(`[History] Read Err: ${e}`); contentList = []; }
 
+        if (!Array.isArray(contentList)) contentList = [];
+        log(`[History] Final Len: ${contentList.length}`);
+
+        // 2. İlgili Item'i Bul
+        const itemInfo = contentList.find(c => c.id === contentId);
+        if (!itemInfo) log(`[Item] Content ID ${contentId} not found in history!`);
+
+        const imagePrompt = itemInfo ? itemInfo.imagePrompt : "Abstract artistic book scene";
+        log(`[Prompt] Length: ${imagePrompt.length}`);
+
+        // Prompt Temizligi
+        const safePrompt = imagePrompt.replace(/[^a-zA-Z0-9\s,]/g, "").replace(/\s+/g, " ").trim().substring(0, 300);
         const encodedPrompt = encodeURIComponent(safePrompt);
-        const randomSeed = Math.floor(Math.random() * 100000);
+        const seed = Math.floor(Math.random() * 100000);
 
-        // Pollinations URL (Basitlestirilmis)
-        // seed ve nologo'yu kaldirdim, standart 768x768 deneyelim (daha guvenli)
-        const imageUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?width=768&height=768&model=flux`;
-
+        // 3. Resim Üret (Pollinations)
+        const imageUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?width=768&height=768&model=flux&seed=${seed}&nologo=true`;
         const pollinationKey = $os.getenv("POLLINATION_KEY") || "";
 
-        console.log(`[QuoteImage/Direct] İndiriliyor...`);
-
-        // 1. HTTP İsteği
+        log(`[AI] Requesting...`);
         const res = $http.send({
             url: imageUrl,
             method: "GET",
-            headers: {
-                "Authorization": `Bearer ${pollinationKey}`, // Varsa gonderir
-                "User-Agent": "Mozilla/5.0"
-            },
+            headers: { "Authorization": `Bearer ${pollinationKey}`, "User-Agent": "Mozilla/5.0" },
             timeout: 60
         });
+        log(`[AI] Status: ${res.statusCode}`);
 
         if (res.statusCode !== 200) {
-            // Hatanin icerigini gorelim
-            throw new Error(`API Hatasi (${res.statusCode}): ${res.raw ? res.raw.substring(0, 200) : 'No Body'}`);
+            return c.json(500, { error: "Image AI Failed", details: res.raw, debugLogs });
         }
 
-        // 2. Dosyaya Yazma
-        const tmpImgPath = `/tmp/quote_${book.id}_${randomSeed}.jpg`;
-        $os.writeFile(tmpImgPath, res.raw);
+        // 4. Dosyayi Kaydet
+        const tmpImgPath = `/tmp/quote_${book.id}_${contentId}.jpg`;
+        try {
+            $os.writeFile(tmpImgPath, res.raw);
+            log(`[OS] File written to ${tmpImgPath}`);
+        } catch (e) {
+            throw new Error("WriteFile Error: " + e);
+        }
 
-        // 3. Dosyayi Kaydet
         try {
             const file = $filesystem.fileFromPath(tmpImgPath);
-            book.set("generated_image", file);
+            book.set("generated_image", file); // Append (Multiple)
             book.set("image_gen_status", "completed");
+
+            // Once dosya kaydi icin save
             $app.save(book);
+            log(`[DB] Image saved to record`);
+
+            // 5. Yeni Dosya Ismini Bul
+            const updatedBook = $app.findRecordById("books", bookId);
+            const savedFiles = updatedBook.get("generated_image");
+
+            let newFileName = "";
+            if (Array.isArray(savedFiles) && savedFiles.length > 0) {
+                newFileName = savedFiles[savedFiles.length - 1]; // Son eklenen
+                log(`[File] New filename: ${newFileName}`);
+            } else if (typeof savedFiles === 'string') {
+                newFileName = savedFiles;
+            }
+
+            if (newFileName) {
+                const idx = contentList.findIndex(c => c.id === contentId);
+                if (idx !== -1) {
+                    contentList[idx].image = newFileName;
+                    updatedBook.set("generated_content", contentList);
+                    $app.save(updatedBook); // JSON update
+                    log(`[DB] JSON updated`);
+                } else {
+                    log(`[DB] Item index not found for update`);
+                }
+            }
+
+            try { $os.remove(tmpImgPath); } catch (e) { }
+
+            const publicUrl = `/api/files/${book.collection().id}/${book.id}/${newFileName}`;
+
+            return c.json(200, {
+                status: "success",
+                image_url: publicUrl,
+                fileName: newFileName,
+                debugLogs
+            });
+
         } catch (err) {
-            throw new Error(`File Save Error: ${err.toString()}`);
+            log(`[Save] Error: ${err}`);
+            return c.json(500, { error: "File Save Error", details: err.toString(), debugLogs });
         }
 
-        // Temizlik
-        try { $os.remove(tmpImgPath); } catch (e) { }
-
-        const fileName = book.get("generated_image");
-        const publicUrl = `/api/files/${book.collection().id}/${book.id}/${fileName}`;
-        const fullUrl = `${$app.settings().meta.appUrl}${publicUrl}`;
-
-        console.log(`[QuoteImage/Direct] Basarili: ${fileName}`);
-
-        return c.json(200, {
-            image_url: fullUrl
-        });
-
     } catch (err) {
-        console.log("[QuoteImage/Direct] Error:", err);
-        return c.json(500, { error: err.toString() });
+        return c.json(500, { error: err.toString(), details: err.message, debugLogs });
     }
 });
