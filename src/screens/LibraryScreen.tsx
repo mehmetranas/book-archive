@@ -7,6 +7,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { pb } from '../services/pocketbase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useColorScheme } from 'nativewind';
 import { AIStatusBadge } from '../components/AIStatusBadge';
 
 export interface Relationship {
@@ -52,6 +53,8 @@ export const LibraryScreen = () => {
     const queryClient = useQueryClient();
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
+    const { colorScheme } = useColorScheme();
+    const isDark = colorScheme === 'dark';
 
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [manualTitle, setManualTitle] = useState('');
@@ -179,7 +182,7 @@ export const LibraryScreen = () => {
                         />
                     ) : (
                         <View className="w-full h-full items-center justify-center">
-                            <Icon name="book-open-variant" size={20} color="#9CA3AF" />
+                            <Icon name="book-open-variant" size={20} color={isDark ? "#E5E7EB" : "#9CA3AF"} />
                         </View>
                     )}
                 </View>
@@ -211,21 +214,21 @@ export const LibraryScreen = () => {
                         {/* Library Badge */}
                         {item.in_library && (
                             <View className="bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded">
-                                <Icon name="bookshelf" size={12} color="#166534" />
+                                <Icon name="bookshelf" size={12} color={isDark ? "#BBF7D0" : "#166534"} />
                             </View>
                         )}
 
                         {/* Archive Badge */}
                         {item.is_archived && (
                             <View className="bg-orange-100 dark:bg-orange-900 px-1.5 py-0.5 rounded">
-                                <Icon name="archive" size={12} color="#C2410C" />
+                                <Icon name="archive" size={12} color={isDark ? "#FED7AA" : "#C2410C"} />
                             </View>
                         )}
 
                         {/* Character Analysis Badge */}
                         {item.character_analysis_status === 'completed' && (
                             <View className="bg-indigo-100 dark:bg-indigo-900 px-1.5 py-0.5 rounded">
-                                <Icon name="head-snowflake-outline" size={12} color="#4F46E5" />
+                                <Icon name="account-multiple" size={12} color={isDark ? "#C7D2FE" : "#4F46E5"} />
                             </View>
                         )}
                     </View>

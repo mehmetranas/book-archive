@@ -4,6 +4,7 @@ import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityInd
 import ReactNativeBlobUtil from 'react-native-blob-util';
 
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { useColorScheme } from 'nativewind';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -32,6 +33,8 @@ interface GlobalBook {
 
 export const BookDetailScreen = () => {
     const { t } = useTranslation();
+    const { colorScheme } = useColorScheme();
+    const isDark = colorScheme === 'dark';
     const insets = useSafeAreaInsets();
     const route = useRoute();
     const navigation = useNavigation();
@@ -456,7 +459,7 @@ export const BookDetailScreen = () => {
                     onPress={() => isEditing ? setIsEditing(false) : navigation.goBack()}
                     className="p-2"
                 >
-                    <Icon name={isEditing ? "close" : "arrow-left"} size={24} color="#374151" />
+                    <Icon name={isEditing ? "close" : "arrow-left"} size={24} color={isDark ? "#F3F4F6" : "#374151"} />
                 </TouchableOpacity>
                 <Text className="text-lg font-bold text-gray-900 dark:text-white flex-1 text-center" numberOfLines={1}>
                     {book.title}
@@ -467,7 +470,7 @@ export const BookDetailScreen = () => {
                     </TouchableOpacity>
                 ) : (
                     <TouchableOpacity onPress={() => setOptionsModalVisible(true)} className="p-2">
-                        <Icon name="dots-vertical" size={24} color="#374151" />
+                        <Icon name="dots-vertical" size={24} color={isDark ? "#F3F4F6" : "#374151"} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -544,9 +547,11 @@ export const BookDetailScreen = () => {
                             <Icon name="chevron-down" size={16} color="#3B82F6" />
                         </TouchableOpacity>
 
-                        <View className="mt-3">
-                            <AIStatusBadge status={book.enrichment_status} showLabel={true} />
-                        </View>
+                        {book.enrichment_status !== 'completed' && (
+                            <View className="mt-3">
+                                <AIStatusBadge status={book.enrichment_status} showLabel={true} />
+                            </View>
+                        )}
                     </View>
                 </View>
 
@@ -640,7 +645,7 @@ export const BookDetailScreen = () => {
                         if (status === 'none' || status === 'failed') {
                             return (
                                 <View className="items-center py-6">
-                                    <Icon name="head-snowflake-outline" size={48} color="#E0E7FF" />
+                                    <Icon name="account-group-outline" size={48} color="#E0E7FF" />
                                     <Text className="text-center text-gray-500 dark:text-gray-400 mt-2 mb-4 px-4">
                                         {t('detail.characterAnalysisDesc', 'Yapay zeka bu kitabı okuyarak karakter haritası çıkarabilir.')}
                                     </Text>
@@ -649,7 +654,7 @@ export const BookDetailScreen = () => {
                                         className="bg-indigo-600 px-6 py-3 rounded-xl flex-row items-center"
                                         disabled={analyzeCharacterMutation.isPending}
                                     >
-                                        <Icon name="creation" size={20} color="white" className="mr-2" />
+                                        <Icon name="account-search-outline" size={20} color="white" className="mr-2" />
                                         <Text className="text-white font-bold ml-2">
                                             {status === 'failed' ? t('common.retry', 'Tekrar Dene') : t('detail.analyzeCharacters', 'Karakterleri Analiz Et')}
                                         </Text>
