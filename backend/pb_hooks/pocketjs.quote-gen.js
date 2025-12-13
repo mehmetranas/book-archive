@@ -43,19 +43,24 @@ routerAdd("POST", "/api/ai/quote", (c) => {
         // 2. Prepare AI Request
         const seed = Math.floor(Math.random() * 1000000);
         const promptText = `
-            Book: "${title}", Author: "${author}"
+            Role: Expert Literary Curator.
+            Book: "${title}" by ${author}
             Random Seed: ${seed}
-            
+
             Task:
-            1. Select a RANDOM, profound, iconic quote from this book in TURKISH. It should be different from previous generations if possible.
-            2. Create a detailed image generation prompt in ENGLISH. This prompt should describe the visual mood, setting, and atmosphere of the selected quote for an Instagram post (cinematic, photorealistic, no text).
+            1. Provide a profound, iconic quote from this book in TURKISH.
+               - CRITICAL: If exact text is unavailable, generate a high-quality, philosophically consistent text that perfectly mimics the author's style and book's themes.
+               - NEVER return "I cannot...", "Sorry...", or any apology. You MUST provide a quote text.
             
-            Return strictly in JSON format:
+            2. Create a detailed image generation prompt in ENGLISH.
+               - Visual style: Cinematic, atmospheric, high-end photography (Instagram/Pinterest style).
+               - Describe lighting, mood, and objects. No text in image.
+
+            Return strictly in JSON format (no markdown):
             {
-              "quote": "The quote in Turkish...",
-              "imagePrompt": "A detailed cinematic description of the scene in English..."
+              "quote": "The Turkish quote here",
+              "imagePrompt": "Cinematic visual description in English"
             }
-            Rule: Return ONLY valid JSON. No markdown formatting.
         `;
 
         const pollinationKey = $os.getenv("POLLINATION_KEY") || "";

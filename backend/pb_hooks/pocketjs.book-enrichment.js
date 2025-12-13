@@ -125,7 +125,7 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
                 // Pollinations GET request with prompt in URL
                 // Note: encodeURIComponent is standard JS.
                 const encodedPrompt = encodeURIComponent(promptText);
-                const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=nova-micro`;
+                const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=gemini-search`;
 
                 const res = $http.send({
                     url: url,
