@@ -13,6 +13,257 @@ import { addMovieToLibrary } from '../../services/tmdb';
 import { Movie } from './MovieLibraryScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+interface MovieExtended extends Movie {
+    character_map_status?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
+    character_map?: {
+        nodes: { id: string; group: string; bio: string }[];
+        links: { source: string; target: string; type: string; label: string }[];
+    } | any; // fallback
+}
+
+// D3.js Graph HTML Generator
+const getGraphHtml = (data: any) => `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body { margin: 0; background-color: #0f172a; overflow: hidden; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        svg { width: 100vw; height: 100vh; touch-action: none; }
+        
+        .node circle { 
+            stroke: #fff; 
+            stroke-width: 3px; 
+            cursor: move; 
+            transition: all 0.3s ease;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+        }
+        
+        .node text { 
+            font-size: 14px; 
+            font-weight: 800;
+            fill: #ffffff !important; 
+            pointer-events: none; 
+            text-anchor: middle;
+            paint-order: stroke fill;
+            stroke: #000000;
+            stroke-width: 3px;
+            stroke-linejoin: round;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+        }
+
+        .link { 
+            stroke-opacity: 0.6; 
+            stroke-width: 2px; 
+            transition: stroke-width 0.2s;
+        }
+
+        .link-label-bg {
+            fill: #0f172a;
+            opacity: 0.8;
+            rx: 4;
+        }
+
+        .link-label { 
+            font-size: 11px; 
+            fill: #94a3b8; 
+            text-anchor: middle; 
+            font-weight: 600;
+        }
+
+        .tooltip { 
+            position: absolute; 
+            background: rgba(15, 23, 42, 0.95); 
+            color: white; 
+            padding: 12px; 
+            border-radius: 8px; 
+            pointer-events: none; 
+            font-size: 14px; 
+            max-width: 250px; 
+            display: none; 
+            border: 1px solid #334155;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            line-height: 1.4;
+            transform: translate(-50%, -100%); 
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="tooltip" class="tooltip"></div>
+    <div id="container"></div>
+    <script>
+        const data = ${JSON.stringify(data)};
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        // Colors
+        const colors = {
+            protagonist: '#10B981', // Green
+            antagonist: '#EF4444',  // Red
+            sidekick: '#F59E0B',    // Amber
+            neutral: '#6366F1',     // Indigo
+            link: '#94a3b8'
+        };
+
+        const svg = d3.select("#container").append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", [0, 0, width, height]);
+
+        // Background for zoom
+        const bg = svg.append("rect")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("fill", "transparent");
+
+        const g = svg.append("g");
+
+        // Zoom
+        const zoom = d3.zoom()
+            .scaleExtent([0.2, 5])
+            .on("zoom", (event) => {
+                g.attr("transform", event.transform);
+            });
+
+        svg.call(zoom)
+           .call(zoom.transform, d3.zoomIdentity.translate(width/2, height/2).scale(0.8));
+
+        // Simulation
+        const simulation = d3.forceSimulation(data.nodes)
+            .force("link", d3.forceLink(data.links).id(d => d.id).distance(220))
+            .force("charge", d3.forceManyBody().strength(-2000))
+            .force("center", d3.forceCenter(0, 0))
+            .force("collide", d3.forceCollide(60).strength(0.7));
+
+        // Links
+        const linkGroup = g.append("g").attr("class", "links");
+        const link = linkGroup.selectAll("line")
+            .data(data.links)
+            .join("line")
+            .attr("class", "link")
+            .attr("stroke", d => {
+                if(d.type === 'Enemy' || d.type === 'Rivalry') return '#DC2626';
+                if(d.type === 'Love') return '#EC4899';
+                if(d.type === 'Family') return '#3B82F6';
+                return colors.link;
+            });
+
+        // Labels
+        const labelGroup = g.append("g").attr("class", "labels");
+        const linkLabelBg = labelGroup.selectAll("rect")
+            .data(data.links)
+            .join("rect")
+            .attr("class", "link-label-bg");
+
+        const linkLabel = labelGroup.selectAll("text")
+            .data(data.links)
+            .join("text")
+            .attr("class", "link-label")
+            .text(d => d.label || d.type);
+
+        // Nodes
+        const node = g.append("g").attr("class", "nodes")
+            .selectAll("g")
+            .data(data.nodes)
+            .join("g")
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+
+        node.append("circle")
+            .attr("r", 25)
+            .attr("fill", d => {
+                const g = (d.group || '').toLowerCase();
+                if(g.includes('protagonist') || g.includes('başrol')) return colors.protagonist;
+                if(g.includes('antagonist') || g.includes('kötü')) return colors.antagonist;
+                if(g.includes('sidekick') || g.includes('yancı')) return colors.sidekick;
+                return colors.neutral;
+            });
+
+        // Node Text (Explicit White)
+        node.append("text")
+            .attr("dy", 38)
+            .attr("fill", "#ffffff") // SVG attr
+            .style("fill", "#ffffff") // CSS style override
+            .style("stroke", "#000000")
+            .style("stroke-width", "3px")
+            .style("paint-order", "stroke fill")
+            .text(d => d.id);
+
+        // Interaction
+        node.on("click", (e, d) => {
+            e.stopPropagation();
+            const t = document.getElementById('tooltip');
+            t.style.display = 'block';
+            t.innerHTML = '<strong style="display:block; margin-bottom:4px; font-size:16px;">' + d.id + '</strong>' + 
+                          '<span style="opacity:0.8">' + (d.bio || 'Bilgi yok') + '</span>';
+            
+            let posX = e.pageX;
+            let posY = e.pageY + 30;
+            if (posX < 100) posX = 100;
+            if (posX > width - 100) posX = width - 100;
+            if (posY > height - 100) posY = e.pageY - 80;
+
+            t.style.left = posX + 'px';
+            t.style.top = posY + 'px';
+            t.style.transform = 'translateX(-50%)';
+            
+            setTimeout(() => { if(t) t.style.display = 'none'; }, 4000);
+        });
+        
+        bg.on("click", () => {
+             document.getElementById('tooltip').style.display = 'none';
+        });
+
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
+
+            link.each(function(d) {
+                const x = (d.source.x + d.target.x) / 2;
+                const y = (d.source.y + d.target.y) / 2;
+                d.midX = x;
+                d.midY = y;
+            });
+
+            linkLabel.attr("x", d => d.midX).attr("y", d => d.midY + 3);
+            
+            linkLabelBg
+                .attr("x", d => d.midX - (d.label?.length || d.type?.length || 4) * 3 - 4)
+                .attr("y", d => d.midY - 7)
+                .attr("width", d => (d.label?.length || d.type?.length || 4) * 6 + 8)
+                .attr("height", 14);
+
+            node.attr("transform", d => "translate(" + d.x + "," + d.y + ")");
+        });
+
+        function dragstarted(event) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            event.subject.fx = event.subject.x;
+            event.subject.fy = event.subject.y;
+        }
+
+        function dragged(event) {
+            event.subject.fx = event.x;
+            event.subject.fy = event.y;
+        }
+
+        function dragended(event) {
+            if (!event.active) simulation.alphaTarget(0);
+            event.subject.fx = null;
+            event.subject.fy = null;
+        }
+    </script>
+</body>
+</html>
+`;
+
 const { width } = Dimensions.get('window');
 
 import { useColorScheme } from 'nativewind';
@@ -33,10 +284,11 @@ export const MovieDetailScreen = () => {
     const initialMediaType = params.mediaType || 'movie';
     const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
     const [imdbModalVisible, setImdbModalVisible] = useState(false);
+    const [mapModalVisible, setMapModalVisible] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
     // 1. Fetch Local Movie Data (to check if saved and get details)
-    const { data: localMovie, isLoading: isLocalLoading, refetch: refetchLocal } = useQuery({
+    const { data: localMovieData, isLoading: isLocalLoading, refetch: refetchLocal } = useQuery({
         queryKey: ['localMovie', initialMovieId, initialTmdbId],
         queryFn: async () => {
             try {
@@ -57,6 +309,9 @@ export const MovieDetailScreen = () => {
             }
         },
     });
+
+    // Cast to Extended
+    const localMovie = localMovieData as MovieExtended | null;
 
     const activeTmdbId = localMovie ? Number(localMovie.tmdb_id) : initialTmdbId;
 
@@ -484,6 +739,71 @@ export const MovieDetailScreen = () => {
                         </Text>
                     </View>
 
+
+
+                    {/* NEW: Character Analysis / Graph Section */}
+                    {localMovie && (
+                        <View className="mb-8">
+                            <Text className="text-sm font-bold text-gray-900 dark:text-white mb-4 opacity-70">
+                                KARAKTER AĞI (V2)
+                            </Text>
+
+                            {localMovie.character_map_status === 'completed' && localMovie.character_map ? (
+                                <View>
+                                    <View className="bg-gray-900 rounded-xl p-4 mb-3 border border-gray-800 h-40 items-center justify-center relative overflow-hidden">
+                                        {/* Mini Preview or Abstract Art */}
+                                        <View className="absolute inset-0 bg-indigo-900/20" />
+                                        <Icon name="graphql" size={48} color="#6366F1" />
+                                        <Text className="text-gray-400 text-xs mt-2">Karakter İlişki Haritası Hazır</Text>
+                                    </View>
+
+                                    <TouchableOpacity
+                                        onPress={() => setMapModalVisible(true)}
+                                        className="bg-indigo-600 py-3 rounded-lg items-center shadow-lg shadow-indigo-500/30"
+                                    >
+                                        <Text className="text-white font-bold text-sm">Ağı Görüntüle</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (localMovie.character_map_status === 'pending' || localMovie.character_map_status === 'processing') ? (
+                                <View className="bg-indigo-50 dark:bg-gray-800 p-4 rounded-xl border border-indigo-100 dark:border-gray-700 flex-row items-center">
+                                    <ActivityIndicator size="small" color="#6366F1" />
+                                    <View className="ml-3">
+                                        <Text className="text-gray-900 dark:text-white font-semibold text-sm">Analiz Yapılıyor...</Text>
+                                        <Text className="text-gray-500 dark:text-gray-400 text-xs">Yapay zeka ilişkileri çözümlüyor.</Text>
+                                    </View>
+                                </View>
+                            ) : (
+                                <View className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                    <Text className="text-gray-900 dark:text-white font-semibold text-sm mb-1">Karakter İlişkilerini Keşfet</Text>
+                                    <Text className="text-gray-500 dark:text-gray-400 text-xs mb-3">
+                                        Kim dost, kim düşman? Yapay zeka ile filmdeki karakter ağını görselleştir.
+                                    </Text>
+                                    <TouchableOpacity
+                                        onPress={async () => {
+                                            try {
+                                                await pb.collection('movies').update(localMovie.id, {
+                                                    character_map_status: 'pending'
+                                                });
+                                                queryClient.invalidateQueries({ queryKey: ['localMovie'] });
+                                                Toast.show({
+                                                    type: 'success',
+                                                    text1: "Analiz Başlatıldı",
+                                                    text2: "İlişki ağı oluşturuluyor...",
+                                                });
+                                            } catch (e) {
+                                                Toast.show({ type: 'error', text1: "Hata", text2: "İşlem başarısız." });
+                                            }
+                                        }}
+                                        className="bg-gray-900 dark:bg-gray-700 py-2.5 rounded-lg items-center border border-gray-700 dark:border-gray-600"
+                                    >
+                                        <Text className="text-white font-medium text-xs">Analizi Başlat</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                        </View>
+                    )}
+
+
                     {/* Videos */}
                     {tmdbMovie?.videos?.results && tmdbMovie.videos.results.length > 0 && (
                         <View className="mb-8">
@@ -662,6 +982,33 @@ export const MovieDetailScreen = () => {
                                 <ActivityIndicator size="large" color="#F5C518" />
                             </View>
                         )}
+                    />
+                </View>
+            </Modal>
+
+            {/* Character Map Modal */}
+            <Modal
+                visible={mapModalVisible}
+                animationType="slide"
+                presentationStyle="fullScreen"
+                onRequestClose={() => setMapModalVisible(false)}
+            >
+                <View className="flex-1 bg-[#111827]">
+                    <StatusBar barStyle="light-content" backgroundColor="#111827" />
+                    <View className="absolute top-12 left-4 z-50">
+                        <TouchableOpacity
+                            onPress={() => setMapModalVisible(false)}
+                            className="bg-gray-800/80 p-2 rounded-full border border-gray-700"
+                        >
+                            <Icon name="close" size={24} color="white" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <WebView
+                        originWhitelist={['*']}
+                        source={{ html: localMovie?.character_map ? getGraphHtml(localMovie.character_map) : '<h1>No Data</h1>' }}
+                        className="flex-1 bg-[#111827]"
+                        scrollEnabled={false}
                     />
                 </View>
             </Modal>
