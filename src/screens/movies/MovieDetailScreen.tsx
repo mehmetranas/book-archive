@@ -14,11 +14,19 @@ import { Movie } from './MovieLibraryScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MovieExtended extends Movie {
-    character_map_status?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
-    character_map?: {
-        nodes: { id: string; group: string; bio: string }[];
-        links: { source: string; target: string; type: string; label: string }[];
-    } | any; // fallback
+    global_values?: string;
+    // Note: status fields are NOT in 'movies' collection, only in 'global_movies'
+    expand?: {
+        global_values?: {
+            id?: string;
+            vibes?: any;
+            mood_color?: string;
+            ai_summary?: string;
+            vibe_status?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
+            character_map?: any;
+            character_map_status?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
+        };
+    };
 }
 
 // D3.js Graph HTML Generator
@@ -293,12 +301,13 @@ export const MovieDetailScreen = () => {
         queryFn: async () => {
             try {
                 if (initialMovieId) {
-                    return await pb.collection('movies').getOne<Movie>(initialMovieId);
+                    return await pb.collection('movies').getOne<Movie>(initialMovieId, { expand: 'global_values' });
                 }
                 if (initialTmdbId) {
                     // Try to find if we already have this movie
                     const records = await pb.collection('movies').getList<Movie>(1, 1, {
                         filter: `tmdb_id = "${initialTmdbId}"`,
+                        expand: 'global_values' // Expanded to get global analysis data
                     });
                     return records.items[0] || null;
                 }
@@ -312,6 +321,34 @@ export const MovieDetailScreen = () => {
 
     // Cast to Extended
     const localMovie = localMovieData as MovieExtended | null;
+
+    // Auto-Link Global Values if missing
+    useEffect(() => {
+        const linkGlobalValues = async () => {
+            if (!localMovie || localMovie.global_values || !localMovie.tmdb_id) return;
+
+            try {
+                // Check if a global record exists
+                const globalRecords = await pb.collection('global_movies').getList(1, 1, {
+                    filter: `tmdb_id = '${localMovie.tmdb_id}'`,
+                });
+
+                if (globalRecords.items.length > 0) {
+                    const globalId = globalRecords.items[0].id;
+                    // Link it
+                    await pb.collection('movies').update(localMovie.id, {
+                        global_values: globalId
+                    });
+                    console.log('Auto-linked global_values:', globalId);
+                    queryClient.invalidateQueries({ queryKey: ['localMovie'] });
+                }
+            } catch (error) {
+                console.log('Error auto-linking global values:', error);
+            }
+        };
+
+        linkGlobalValues();
+    }, [localMovie?.id, localMovie?.global_values, localMovie?.tmdb_id]);
 
     const activeTmdbId = localMovie ? Number(localMovie.tmdb_id) : initialTmdbId;
 
@@ -502,19 +539,68 @@ export const MovieDetailScreen = () => {
 
                     {/* Add / Delete Action Button */}
                     <View className="flex-row items-center gap-2">
-                        {localMovie && (localMovie.vibe_status === 'none' || !localMovie.vibe_status) && (
+                        {localMovie && (!localMovie.expand?.global_values?.vibes && localMovie.expand?.global_values?.vibe_status !== 'completed') && (
                             <TouchableOpacity
                                 onPress={async () => {
-                                    if (!localMovie) return;
                                     try {
-                                        await pb.collection('movies').update(localMovie.id, {
-                                            vibe_status: 'pending'
-                                        });
+                                        const tmdbId = localMovie.tmdb_id;
+                                        const title = localMovie.title;
+
+                                        // 1. Check if Global Record exists via expand
+                                        let globalId = localMovie.expand?.global_values?.id;
+
+                                        // If not in expand, check DB directly
+                                        if (!globalId && tmdbId) {
+                                            const globalRecords = await pb.collection('global_movies').getList(1, 1, {
+                                                filter: `tmdb_id = '${tmdbId}'`,
+                                            });
+                                            if (globalRecords.items.length > 0) {
+                                                globalId = globalRecords.items[0].id;
+                                            }
+                                        }
+
+                                        // 2. Create or Update Global
+                                        let shouldLinkOnly = false;
+
+                                        if (globalId) {
+                                            // Check current status before wiping it
+                                            let currentStatus = localMovie.expand?.global_values?.vibe_status;
+
+                                            // If we don't have status from expand, fetch fresh to be sure
+                                            if (!currentStatus) {
+                                                const freshGlobal = await pb.collection('global_movies').getOne(globalId);
+                                                currentStatus = freshGlobal.vibe_status;
+                                            }
+
+                                            if (currentStatus === 'completed') {
+                                                shouldLinkOnly = true;
+                                            } else {
+                                                await pb.collection('global_movies').update(globalId, {
+                                                    vibe_status: 'pending'
+                                                });
+                                            }
+                                        } else {
+                                            const newGlobal = await pb.collection('global_movies').create({
+                                                tmdb_id: tmdbId,
+                                                title: title,
+                                                vibe_status: 'pending'
+                                            });
+                                            globalId = newGlobal.id;
+                                        }
+
+                                        // 3. Link to Local
+                                        // IMPORTANT: Only update relation field. 'vibe_status' does NOT exist on 'movies'.
+                                        if (localMovie.global_values !== globalId) {
+                                            await pb.collection('movies').update(localMovie.id, {
+                                                global_values: globalId
+                                            });
+                                        }
+
                                         queryClient.invalidateQueries({ queryKey: ['localMovie'] });
                                         Toast.show({
                                             type: 'success',
-                                            text1: "Analiz Başlatıldı",
-                                            text2: "Filmin atmosfer analizi arka planda başlatıldı.",
+                                            text1: shouldLinkOnly ? "Veriler Eşleşti" : "Analiz Başlatıldı",
+                                            text2: shouldLinkOnly ? "Mevcut analiz verileri yüklendi." : "Filmin atmosfer analizi arka planda başlatıldı.",
                                             position: 'top'
                                         });
                                     } catch (e) {
@@ -526,10 +612,28 @@ export const MovieDetailScreen = () => {
                                         });
                                     }
                                 }}
-                                className="flex-row items-center bg-indigo-600/90 border border-indigo-400/30 px-3 py-1.5 rounded-full"
+                                disabled={
+                                    localMovie.expand?.global_values?.vibe_status === 'pending' ||
+                                    localMovie.expand?.global_values?.vibe_status === 'processing'
+                                }
+                                className={`flex-row items-center px-3 py-1.5 rounded-full border ${(localMovie.expand?.global_values?.vibe_status === 'pending' || localMovie.expand?.global_values?.vibe_status === 'processing')
+                                    ? 'bg-gray-600/90 border-gray-500/30'
+                                    : 'bg-indigo-600/90 border-indigo-400/30'
+                                    }`}
                             >
-                                <Icon name="creation" size={16} color="white" />
-                                <Text className="text-white text-xs font-bold ml-1.5">Vibe</Text>
+                                {(localMovie.expand?.global_values?.vibe_status === 'pending' || localMovie.expand?.global_values?.vibe_status === 'processing') ? (
+                                    <>
+                                        <ActivityIndicator size="small" color="white" />
+                                        <Text className="text-white text-xs font-bold ml-1.5">
+                                            {localMovie.expand?.global_values?.vibe_status === 'processing' ? 'İşleniyor' : 'Bekliyor'}
+                                        </Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Icon name="creation" size={16} color="white" />
+                                        <Text className="text-white text-xs font-bold ml-1.5">Vibe</Text>
+                                    </>
+                                )}
                             </TouchableOpacity>
                         )}
 
@@ -647,51 +751,53 @@ export const MovieDetailScreen = () => {
                 {/* Content Body */}
                 <View className="px-6 pt-4">
 
-                    {/* VIBE RESULTS (When Completed) */}
-                    {localMovie && (localMovie.vibe_status === 'completed' && localMovie.vibes) && (
+                    {/* VIBE RESULTS (Strictly from Global Values) */}
+                    {localMovie?.expand?.global_values && (localMovie.expand.global_values.vibes || localMovie.expand.global_values.vibe_status === 'pending' || localMovie.expand.global_values.vibe_status === 'processing') && (
                         <View className="mb-6">
-
-                            <View>
-                                {/* Vibe Tags - Flex Wrap Layout */}
-                                <View className="flex-row flex-wrap gap-2 mb-4">
-                                    {localMovie.vibes.map((vibe: string, i: number) => (
-                                        <View
-                                            key={i}
-                                            className="px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 shadow-sm"
-                                            style={{ backgroundColor: localMovie.mood_color ? `${localMovie.mood_color}30` : '#F3F4F6' }}
-                                        >
-                                            <Text
-                                                className="text-xs font-bold"
-                                                style={{ color: localMovie.mood_color || '#1F2937' }}
+                            {(localMovie.expand.global_values.vibes) ? (
+                                <View>
+                                    {/* Vibe Tags */}
+                                    <View className="flex-row flex-wrap gap-2 mb-3">
+                                        {(localMovie.expand.global_values.vibes || []).map((vibe: string, i: number) => (
+                                            <View
+                                                key={i}
+                                                className="px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 shadow-sm"
+                                                style={{
+                                                    backgroundColor: (localMovie.expand.global_values?.mood_color)
+                                                        ? `${localMovie.expand.global_values.mood_color}30`
+                                                        : '#F3F4F6'
+                                                }}
                                             >
-                                                {vibe}
+                                                <Text
+                                                    className="text-xs font-bold"
+                                                    style={{ color: localMovie.expand.global_values?.mood_color || '#1F2937' }}
+                                                >
+                                                    {vibe}
+                                                </Text>
+                                            </View>
+                                        ))}
+                                    </View>
+
+                                    {/* AI Mood Summary */}
+                                    {localMovie.expand.global_values.ai_summary && (
+                                        <View
+                                            className="p-3 rounded-lg border-l-4 bg-gray-50 dark:bg-gray-800 shadow-sm"
+                                            style={{ borderLeftColor: localMovie.expand.global_values.mood_color || '#6366F1' }}
+                                        >
+                                            <Text className="text-gray-700 dark:text-gray-300 text-sm italic leading-5 font-medium">
+                                                "{localMovie.expand.global_values.ai_summary}"
                                             </Text>
                                         </View>
-                                    ))}
+                                    )}
                                 </View>
-
-                                {/* AI Mood Summary */}
-                                {localMovie.ai_summary && (
-                                    <View
-                                        className="p-3 rounded-lg border-l-4 bg-gray-50 dark:bg-gray-800 shadow-sm"
-                                        style={{ borderLeftColor: localMovie.mood_color || '#6366F1' }}
-                                    >
-                                        <Text className="text-gray-700 dark:text-gray-300 text-sm italic leading-5 font-medium">
-                                            "{localMovie.ai_summary}"
-                                        </Text>
-                                    </View>
-                                )}
-                            </View>
-                        </View>
-                    )}
-
-                    {/* Pending State display in content body instead of header */}
-                    {localMovie && (localMovie.vibe_status === 'pending' || localMovie.vibe_status === 'processing') && (
-                        <View className="mb-6 flex-row items-center bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800">
-                            <ActivityIndicator size="small" color="#6366F1" />
-                            <Text className="text-indigo-600 dark:text-indigo-300 text-sm font-medium ml-3">
-                                Yapay zeka film atmosferini analiz ediyor...
-                            </Text>
+                            ) : (localMovie.expand.global_values.vibe_status === 'pending' || localMovie.expand.global_values.vibe_status === 'processing') ? (
+                                <View className="mb-6 flex-row items-center bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800">
+                                    <ActivityIndicator size="small" color="#6366F1" />
+                                    <Text className="text-indigo-600 dark:text-indigo-300 text-sm font-medium ml-3">
+                                        Yapay zeka film atmosferini analiz ediyor...
+                                    </Text>
+                                </View>
+                            ) : null}
                         </View>
                     )}
                     {/* Watch Providers (TR) */}
@@ -748,7 +854,7 @@ export const MovieDetailScreen = () => {
                                 KARAKTER AĞI (V2)
                             </Text>
 
-                            {localMovie.character_map_status === 'completed' && localMovie.character_map ? (
+                            {(localMovie.expand?.global_values?.character_map) ? (
                                 <View>
                                     <View className="bg-gray-900 rounded-xl p-4 mb-3 border border-gray-800 h-40 items-center justify-center relative overflow-hidden">
                                         {/* Mini Preview or Abstract Art */}
@@ -764,7 +870,7 @@ export const MovieDetailScreen = () => {
                                         <Text className="text-white font-bold text-sm">Ağı Görüntüle</Text>
                                     </TouchableOpacity>
                                 </View>
-                            ) : (localMovie.character_map_status === 'pending' || localMovie.character_map_status === 'processing') ? (
+                            ) : (localMovie.expand?.global_values?.character_map_status === 'pending' || localMovie.expand?.global_values?.character_map_status === 'processing') ? (
                                 <View className="bg-indigo-50 dark:bg-gray-800 p-4 rounded-xl border border-indigo-100 dark:border-gray-700 flex-row items-center">
                                     <ActivityIndicator size="small" color="#6366F1" />
                                     <View className="ml-3">
@@ -781,8 +887,50 @@ export const MovieDetailScreen = () => {
                                     <TouchableOpacity
                                         onPress={async () => {
                                             try {
-                                                await pb.collection('movies').update(localMovie.id, {
-                                                    character_map_status: 'pending'
+                                                const tmdbId = localMovie.tmdb_id;
+                                                const title = localMovie.title;
+
+                                                // 1. Check if Global Record exists
+                                                let globalId = localMovie.expand?.global_values?.id;
+
+                                                if (!globalId && tmdbId) {
+                                                    const globalRecords = await pb.collection('global_movies').getList(1, 1, {
+                                                        filter: `tmdb_id = '${tmdbId}'`,
+                                                    });
+                                                    if (globalRecords.items.length > 0) {
+                                                        globalId = globalRecords.items[0].id;
+                                                    }
+                                                }
+
+                                                // 2. Create or Update Global
+                                                if (globalId) {
+                                                    await pb.collection('global_movies').update(globalId, {
+                                                        character_map_status: 'pending'
+                                                    });
+                                                } else {
+                                                    // Create new
+                                                    const newGlobal = await pb.collection('global_movies').create({
+                                                        tmdb_id: tmdbId,
+                                                        title: title,
+                                                        character_map_status: 'pending'
+                                                    });
+                                                    globalId = newGlobal.id;
+                                                }
+
+                                                // 3. Link to Local (if not already linked)
+                                                // IMPORTANT: Only update relation field. Status does not exist locally.
+                                                if (localMovie.global_values !== globalId) {
+                                                    await pb.collection('movies').update(localMovie.id, {
+                                                        global_values: globalId
+                                                    });
+                                                }
+
+                                                queryClient.invalidateQueries({ queryKey: ['localMovie'] });
+
+                                                Toast.show({
+                                                    type: 'success',
+                                                    text1: "Analiz Başlatıldı",
+                                                    text2: "İlişki ağı oluşturuluyor...",
                                                 });
                                                 queryClient.invalidateQueries({ queryKey: ['localMovie'] });
                                                 Toast.show({
@@ -1006,7 +1154,7 @@ export const MovieDetailScreen = () => {
 
                     <WebView
                         originWhitelist={['*']}
-                        source={{ html: localMovie?.character_map ? getGraphHtml(localMovie.character_map) : '<h1>No Data</h1>' }}
+                        source={{ html: (localMovie?.expand?.global_values?.character_map) ? getGraphHtml(localMovie.expand.global_values.character_map) : '<h1>No Data</h1>' }}
                         className="flex-1 bg-[#111827]"
                         scrollEnabled={false}
                     />

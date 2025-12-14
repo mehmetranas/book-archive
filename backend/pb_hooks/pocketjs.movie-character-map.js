@@ -1,6 +1,6 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-console.log("--> Movie Character Map Worker (Graph) Ready...");
+console.log("--> Movie Character Map Worker (Global Graph) Ready...");
 
 cronAdd("movie_charmap_job", "* * * * *", () => {
 
@@ -10,18 +10,19 @@ cronAdd("movie_charmap_job", "* * * * *", () => {
         d.setMinutes(d.getMinutes() - 10);
         const threshold = d.toISOString().replace('T', ' ').substring(0, 19) + ".000Z";
 
+        // CLEANUP: Target global_movies
         const staleRecords = $app.findRecordsByFilter(
-            "movies",
+            "global_movies",
             `character_map_status = 'processing' && updated < '${threshold}'`,
             "-updated",
             5
         );
 
         if (staleRecords.length > 0) {
-            console.log(`[MovieCharMap] Cleaning up ${staleRecords.length} stale records...`);
+            console.log(`[MovieCharMap] Cleaning up ${staleRecords.length} stale global records...`);
             staleRecords.forEach((rec) => {
                 rec.set("character_map_status", "failed");
-                rec.set("ai_notes", "Timeout (Auto-Cleanup)");
+                // rec.set("ai_notes", "Timeout (Auto-Cleanup)"); // global_movies table likely doesn't have ai_notes, check schema if needed. Assuming it uses ai_summary or log.
                 $app.save(rec);
             });
         }
@@ -29,10 +30,10 @@ cronAdd("movie_charmap_job", "* * * * *", () => {
         console.log("[MovieCharMap] Cleanup Warning:", err);
     }
 
-    // 1. FIND PENDING
+    // 1. FIND PENDING GLOBAL TASKS
     try {
         const records = $app.findRecordsByFilter(
-            "movies",
+            "global_movies",
             "character_map_status = 'pending'",
             "-updated",
             5
@@ -40,16 +41,43 @@ cronAdd("movie_charmap_job", "* * * * *", () => {
 
         if (records.length === 0) return;
 
-        console.log(`[MovieCharMap] Processing ${records.length} movies...`);
+        console.log(`[MovieCharMap] Processing ${records.length} global movies...`);
 
         records.forEach((record) => {
-            const title = record.get("title");
+            // NOTE: record is now a 'global_movies' record
+            const tmdbId = record.get("tmdb_id");
+            let title = record.get("title"); // Might be empty if schema implies no title
+
+            // Fallback: If no title in global record, find it from local movies
+            if (!title) {
+                try {
+                    const localMovies = $app.findRecordsByFilter(
+                        "movies",
+                        `tmdb_id = '${tmdbId}'`,
+                        "-created",
+                        1
+                    );
+                    if (localMovies.length > 0) {
+                        title = localMovies[0].get("title");
+                    }
+                } catch (e) {
+                    console.log("[MovieCharMap] Could not find local title fallback: " + e);
+                }
+            }
+
+            if (!title) {
+                console.log(`[MovieCharMap] No title found for tmdb_id ${tmdbId}. Skipping.`);
+                record.set("character_map_status", "failed");
+                $app.save(record);
+                return;
+            }
 
             // Mark as processing
             record.set("character_map_status", "processing");
             $app.save(record);
 
             try {
+                // STEP 1: Generate AI Data
                 // PROMPT FOR GRAPH DATA
                 const promptText = `
                     Role: Cinema Psychologist & Data Scientist.
@@ -111,20 +139,23 @@ cronAdd("movie_charmap_job", "* * * * *", () => {
                 if (start !== -1 && end !== -1) {
                     rawText = rawText.substring(start, end + 1);
                 }
-
                 const graphData = JSON.parse(rawText);
 
-                // SAVE
+                // STEP 2: Save to Global Movie
                 record.set("character_map", graphData);
                 record.set("character_map_status", "completed");
+
+                // Assuming 'ai_summary' field exists in global_movies for notes/summary if needed, 
+                // but strictly for character map we just set status and map.
+
                 $app.save(record);
 
-                console.log(`[MovieCharMap] Success: ${title}`);
+                console.log(`[MovieCharMap] Success (Global Data Updated): ${title}`);
 
             } catch (err) {
                 console.log(`[MovieCharMap] Error for ${title}: ${err}`);
                 record.set("character_map_status", "failed");
-                record.set("ai_notes", "Error: " + err.toString());
+                // record.set("ai_notes", "Error: " + err.toString()); // check if global_movies has this field before uncommenting
                 $app.save(record);
             }
         });

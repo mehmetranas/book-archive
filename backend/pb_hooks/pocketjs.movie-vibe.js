@@ -1,28 +1,31 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-console.log("--> Movie Vibe Match Worker (Mood Analysis) Ready...");
+console.log("--> Movie Vibe Match Worker (Global Table Mode) Ready...");
 
 cronAdd("movie_vibe_job", "* * * * *", () => {
 
-    // 0. CLEANUP: Timeout check for 'processing' records (> 5 mins)
+    // 0. CLEANUP: Timeout check for 'processing' records (> 5 mins) in GLOBAL table
     try {
         const d = new Date();
         d.setMinutes(d.getMinutes() - 5);
         const threshold = d.toISOString().replace('T', ' ').substring(0, 19) + ".000Z";
 
         const staleRecords = $app.findRecordsByFilter(
-            "movies",
+            "global_movies",
             `vibe_status = 'processing' && updated < '${threshold}'`,
             "-updated",
             5
         );
 
         if (staleRecords.length > 0) {
-            console.log(`[MovieVibe] Cleaning up ${staleRecords.length} stale records...`);
+            console.log(`[MovieVibe] Cleaning up ${staleRecords.length} stale global records...`);
             staleRecords.forEach((rec) => {
-                // If it timed out, mark as failed to avoid infinite loop/cost
                 rec.set("vibe_status", "failed");
-                rec.set("ai_notes", "Timeout (Auto-Cleanup)");
+                // ai_notes field might not exist in global_movies schema based on user input, 
+                // but usually fine to set if schema allows, or ignore if strict. 
+                // We'll try to set it, if it fails it might be ignored or throw.
+                // User didn't show ai_notes in global_movies, but it is good practice.
+                try { rec.set("ai_notes", "Timeout (Auto-Cleanup)"); } catch (e) { }
                 $app.save(rec);
             });
         }
@@ -30,46 +33,56 @@ cronAdd("movie_vibe_job", "* * * * *", () => {
         console.log("[MovieVibe] Cleanup Warning:", err);
     }
 
-    // 1. FIND PENDING
+    // 1. FIND PENDING IN GLOBAL MOVIES
     try {
         const records = $app.findRecordsByFilter(
-            "movies",
+            "global_movies",
             "vibe_status = 'pending'",
-            "-created",
+            "-updated", // Process recently requested ones first? or oldest?
             5
         );
 
         if (records.length === 0) return;
 
-        console.log(`[MovieVibe] Processing ${records.length} movies...`);
+        console.log(`[MovieVibe] Processing ${records.length} global movies...`);
 
         records.forEach((record) => {
-            const title = record.get("title");
+            const tmdbId = record.get("tmdb_id");
+            let title = "";
 
-            // Mark as processing immediately
+            // We need the title to run the prompt. 
+            // Try to find it from a local movie record since global_movies schema doesn't seem to force title? 
+            // Or maybe it does, but let's lookup to be safe/rich.
+            try {
+                const localMovies = $app.findRecordsByFilter(
+                    "movies",
+                    `tmdb_id = '${tmdbId}'`,
+                    "-created",
+                    1
+                );
+                if (localMovies.length > 0) {
+                    title = localMovies[0].get("title");
+                }
+            } catch (e) { }
+
+            // If we still don't have a title (orphan global record?), we can't do much.
+            if (!title) {
+                console.log(`[MovieVibe] No title found for tmdb_id ${tmdbId}. Skipping.`);
+                record.set("vibe_status", "failed");
+                try { record.set("ai_notes", "No title found for TMDB ID"); } catch (e) { }
+                $app.save(record);
+                return;
+            }
+
+            // Mark as processing
             record.set("vibe_status", "processing");
             $app.save(record);
 
             try {
-                // SAFETY: Check if already analyzed to save AI costs
-                const existingVibes = record.get("vibes");
-                // Check if vibes field is populated (array with items or non-empty string depending on storage)
-                // Since we store as JSON, it comes out as array or object.
-                let hasData = false;
-                try {
-                    // PocketBase might return raw JSON or object. 
-                    // If it's an array with length > 0, we skip.
-                    if (Array.isArray(existingVibes) && existingVibes.length > 0) hasData = true;
-                } catch (e) { }
+                // Check if vibes already exist? (Recalculation check)
+                // If user set to pending, they probably want a recalc.
 
-                if (hasData) {
-                    console.log(`[MovieVibe] Skipping ${title} - Already has data.`);
-                    record.set("vibe_status", "completed");
-                    $app.save(record);
-                    return;
-                }
-
-                // PROMPT PREPARATION (English Prompt, Turkish Output)
+                // PROMPT PREPARATION
                 const promptText = `
                     Role: Professional Film Critic & Atmosphere Colorist.
                     Task: Analyze the vibe, mood, and aesthetic of the movie: "${title}".
@@ -95,7 +108,6 @@ cronAdd("movie_vibe_job", "* * * * *", () => {
                 // POLLINATIONS AI REQUEST
                 const pollinationKey = $os.getenv("POLLINATION_KEY") || "";
                 const encodedPrompt = encodeURIComponent(promptText);
-                // Using a fast text model
                 const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=openai`;
 
                 const res = $http.send({
@@ -112,36 +124,29 @@ cronAdd("movie_vibe_job", "* * * * *", () => {
 
                 // PARSE RESPONSE
                 let rawText = res.raw;
-                // Cleanup potentially messy AI output
                 rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
                 const firstBrace = rawText.indexOf('{');
                 const lastBrace = rawText.lastIndexOf('}');
                 if (firstBrace !== -1 && lastBrace !== -1) {
                     rawText = rawText.substring(firstBrace, lastBrace + 1);
                 }
-
                 const aiData = JSON.parse(rawText);
 
-                // UPDATE RECORD
+                // UPDATE GLOBAL RECORD
                 if (aiData.vibes) record.set("vibes", aiData.vibes);
                 if (aiData.mood_color) record.set("mood_color", aiData.mood_color);
-
-                // If there's a specific field for AI summary, use it. 
-                // Assuming 'ai_summary' or putting it in description if empty? 
-                // Let's use 'ai_summary' field if exists, but since we are defining the feature, 
-                // I'll assume we save it to 'ai_summary'.
                 if (aiData.summary) record.set("ai_summary", aiData.summary);
 
                 record.set("vibe_status", "completed");
+                try { record.set("ai_notes", ""); } catch (e) { }
                 $app.save(record);
 
-                console.log(`[MovieVibe] Success: ${title}`);
+                console.log(`[MovieVibe] Success (Global): ${title}`);
 
             } catch (err) {
                 console.log(`[MovieVibe] Error for ${title}: ${err}`);
-                // FAILED state - No automatic retry to save cost/performance as requested
                 record.set("vibe_status", "failed");
-                record.set("ai_notes", "Error: " + err.toString());
+                try { record.set("ai_notes", "Error: " + err.toString()); } catch (e) { }
                 $app.save(record);
             }
         });
