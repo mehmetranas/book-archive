@@ -26,6 +26,14 @@ routerAdd("POST", "/api/ai/quote", (c) => {
 
         // 1. Fetch Book Info
         const book = $app.findRecordById("books", bookId);
+
+        // 0. CHECK ENRICHMENT STATUS (Dependency)
+        // Kullanici istegi: Enrich pending veya processing ise diger AI islemleri engellenmeli
+        const enrichmentStatus = book.get("enrichment_status");
+        if (enrichmentStatus === "pending" || enrichmentStatus === "processing") {
+            return c.json(400, { error: "Kitap özeti/analizi henüz tamamlanmadı. Lütfen bekleyin." });
+        }
+
         const title = book.get("title");
         let author = "";
 

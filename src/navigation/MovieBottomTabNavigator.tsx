@@ -14,18 +14,22 @@ export type RootTabParamList = {
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
+import { useColorScheme } from 'nativewind';
+
 export const MovieBottomTabNavigator = () => {
     const { t } = useTranslation();
+    const { colorScheme } = useColorScheme();
+    const isDark = colorScheme === 'dark';
 
     return (
         <Tab.Navigator
             screenOptions={{
                 tabBarActiveTintColor: '#3B82F6',
-                tabBarInactiveTintColor: '#9CA3AF',
+                tabBarInactiveTintColor: isDark ? '#9CA3AF' : '#9CA3AF',
                 headerShown: false,
                 tabBarStyle: {
-                    backgroundColor: '#FFFFFF',
-                    borderTopColor: '#E5E7EB',
+                    backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+                    borderTopColor: isDark ? '#374151' : '#E5E7EB',
                 },
             }}>
             <Tab.Screen

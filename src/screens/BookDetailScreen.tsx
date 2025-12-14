@@ -662,8 +662,8 @@ export const BookDetailScreen = () => {
                                     setQuoteLoading(false);
                                 }
                             }}
-                            disabled={quoteLoading}
-                            className={`px-4 py-2 rounded-full flex-row items-center ${quoteLoading ? 'bg-gray-100 dark:bg-gray-800' : 'bg-purple-600'}`}
+                            disabled={quoteLoading || (book.enrichment_status === 'pending' || book.enrichment_status === 'processing')}
+                            className={`px-4 py-2 rounded-full flex-row items-center ${(quoteLoading || book.enrichment_status === 'pending' || book.enrichment_status === 'processing') ? 'bg-gray-100 dark:bg-gray-800 opacity-50' : 'bg-purple-600'}`}
                         >
                             {quoteLoading ? (
                                 <ActivityIndicator size="small" color="#9333EA" />
@@ -941,8 +941,8 @@ export const BookDetailScreen = () => {
                                     </Text>
                                     <TouchableOpacity
                                         onPress={() => analyzeCharacterMutation.mutate()}
-                                        className="bg-indigo-600 px-6 py-3 rounded-xl flex-row items-center"
-                                        disabled={analyzeCharacterMutation.isPending}
+                                        className={`bg-indigo-600 px-6 py-3 rounded-xl flex-row items-center ${(book.enrichment_status === 'pending' || book.enrichment_status === 'processing') ? 'opacity-50' : ''}`}
+                                        disabled={analyzeCharacterMutation.isPending || (book.enrichment_status === 'pending' || book.enrichment_status === 'processing')}
                                     >
                                         <Icon name="account-search-outline" size={20} color="white" className="mr-2" />
                                         <Text className="text-white font-bold ml-2">
@@ -1016,7 +1016,7 @@ export const BookDetailScreen = () => {
                         }
                     })()}
                 </View>
-            </ScrollView>
+            </ScrollView >
 
             {/* Full Screen Character Modal */}
             < Modal
