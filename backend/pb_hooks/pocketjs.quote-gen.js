@@ -40,7 +40,48 @@ routerAdd("POST", "/api/ai/quote", (c) => {
             }
         } catch (e) { author = "Unknown Author"; }
 
-        // 2. Prepare AI Request
+        // 2. Check Limit (Max 2 Quotes)
+        let history = [];
+        try {
+            const raw = book.get("generated_content");
+
+            if (raw) {
+                // 1. Raw veriyi string'e cevir
+                let jsonStr = "";
+                try { jsonStr = JSON.stringify(raw); } catch (e) { }
+
+                let temp = null;
+                try { temp = JSON.parse(jsonStr); } catch (e) { }
+
+                if (Array.isArray(temp) && temp.length > 0 && typeof temp[0] === 'number') {
+                    try {
+                        const decodedStr = utf8ArrayToString(temp);
+                        history = JSON.parse(decodedStr);
+                    } catch (decodeErr) {
+                        history = [];
+                    }
+                } else if (Array.isArray(temp)) {
+                    history = temp;
+                } else {
+                    if (temp) history = [temp];
+                }
+            }
+        } catch (e) {
+            history = [];
+        }
+
+        if (!Array.isArray(history)) {
+            history = [];
+        }
+
+        // Clean existing
+        history = history.filter(item => typeof item === 'object' && item !== null && item.id);
+
+        if (history.length >= 2) {
+            return c.json(400, { error: "Bu kitap için maksimum 2 alıntı oluşturabilirsiniz." });
+        }
+
+        // 3. Prepare AI Request
         const seed = Math.floor(Math.random() * 1000000);
         const promptText = `
             Role: Expert Literary Curator.
@@ -111,44 +152,7 @@ routerAdd("POST", "/api/ai/quote", (c) => {
             createdAt: new Date().toISOString()
         };
 
-        // Mevcut listeyi guvenli sekilde al
-        let history = [];
-
-        try {
-            const raw = book.get("generated_content");
-
-            if (raw) {
-                // 1. Raw veriyi string'e cevir
-                let jsonStr = "";
-                try { jsonStr = JSON.stringify(raw); } catch (e) { }
-
-                let temp = null;
-                try { temp = JSON.parse(jsonStr); } catch (e) { }
-
-                if (Array.isArray(temp) && temp.length > 0 && typeof temp[0] === 'number') {
-                    try {
-                        const decodedStr = utf8ArrayToString(temp);
-                        history = JSON.parse(decodedStr);
-                    } catch (decodeErr) {
-                        history = [];
-                    }
-                } else if (Array.isArray(temp)) {
-                    history = temp;
-                } else {
-                    if (temp) history = [temp];
-                }
-            }
-        } catch (e) {
-            history = [];
-        }
-
-        if (!Array.isArray(history)) {
-            history = [];
-        }
-
-        // Clean
-        history = history.filter(item => typeof item === 'object' && item !== null && item.id);
-
+        // Append to existing history (parsed at step 2)
         history.push(newItem);
 
         try {

@@ -911,9 +911,16 @@ export const BookDetailScreen = () => {
                     </View>
 
                     {(() => {
+                        // Check multiple sources for status
+                        const mutationPending = analyzeCharacterMutation.isPending;
                         const globalStatus = globalBook?.character_analysis_status;
+                        const localStatus = book.character_analysis_status;
                         const hasLocalMap = book.character_map && book.character_map.length > 0;
-                        let status = globalStatus || 'none';
+
+                        // Priority: Mutation (Immediate UI) -> Local (DB) -> Global (DB) -> None
+                        let status = mutationPending ? 'pending' :
+                            (localStatus === 'pending' || localStatus === 'processing' ? localStatus :
+                                (globalStatus || 'none'));
 
                         // Fallback mechanism
                         if ((!status || status === 'none') && hasLocalMap) {
@@ -925,7 +932,7 @@ export const BookDetailScreen = () => {
                                 <View className="items-center py-6">
                                     <Icon name="account-group-outline" size={48} color="#E0E7FF" />
                                     <Text className="text-center text-gray-500 dark:text-gray-400 mt-2 mb-4 px-4">
-                                        {t('detail.characterAnalysisDesc', 'Yapay zeka bu kitabı okuyarak karakter haritası çıkarabilir.')}
+                                        {t('detail.characterAnalysisDesc', 'Kitabın detaylı karakter haritasını ve ilişkilerini keşfedin.')}
                                     </Text>
                                     <TouchableOpacity
                                         onPress={() => analyzeCharacterMutation.mutate()}
@@ -944,7 +951,7 @@ export const BookDetailScreen = () => {
                                 <View className="items-center py-8">
                                     <ActivityIndicator size="large" color="#4F46E5" />
                                     <Text className="text-indigo-600 dark:text-indigo-400 font-medium mt-4">
-                                        {t('detail.analyzing', 'Yapay zeka kitabı okuyor...')}
+                                        {t('detail.analyzing', 'Karakterler ve ilişkiler inceleniyor...')}
                                     </Text>
                                     <Text className="text-gray-400 text-xs mt-1 text-center px-4">
                                         {t('detail.pleaseWait', 'Lütfen bekleyin, bu işlem birkaç dakika sürebilir.')}
