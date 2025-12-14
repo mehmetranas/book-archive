@@ -281,10 +281,9 @@ export const MovieDetailScreen = () => {
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
     const route = useRoute();
-    const navigation = useNavigation();
+    const navigation = useNavigation<any>();
     const queryClient = useQueryClient();
 
-    // Accept parsed params: either a local movieId or a TMDB ID
     // Accept parsed params: either a local movieId or a TMDB ID
     const params = route.params as { movieId?: string; tmdbId?: number; mediaType?: 'movie' | 'tv' };
     const initialMovieId = params.movieId;
@@ -293,6 +292,8 @@ export const MovieDetailScreen = () => {
     const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
     const [imdbModalVisible, setImdbModalVisible] = useState(false);
     const [mapModalVisible, setMapModalVisible] = useState(false);
+    const [cardsModalVisible, setCardsModalVisible] = useState(false);
+    const [selectedCharacter, setSelectedCharacter] = useState<any>(null);
     const [refreshing, setRefreshing] = useState(false);
 
     // 1. Fetch Local Movie Data (to check if saved and get details)
@@ -863,12 +864,21 @@ export const MovieDetailScreen = () => {
                                         <Text className="text-gray-400 text-xs mt-2">Karakter İlişki Haritası Hazır</Text>
                                     </View>
 
-                                    <TouchableOpacity
-                                        onPress={() => setMapModalVisible(true)}
-                                        className="bg-indigo-600 py-3 rounded-lg items-center shadow-lg shadow-indigo-500/30"
-                                    >
-                                        <Text className="text-white font-bold text-sm">Ağı Görüntüle</Text>
-                                    </TouchableOpacity>
+                                    <View className="flex-row gap-3">
+                                        <TouchableOpacity
+                                            onPress={() => setMapModalVisible(true)}
+                                            className="flex-1 bg-indigo-600 py-3 rounded-lg items-center shadow-lg shadow-indigo-500/30"
+                                        >
+                                            <Text className="text-white font-bold text-sm">Ağı Görüntüle</Text>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            onPress={() => setCardsModalVisible(true)}
+                                            className="flex-1 bg-gray-800 py-3 rounded-lg items-center border border-gray-700"
+                                        >
+                                            <Text className="text-gray-200 font-bold text-sm">Kartları İncele</Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
                             ) : (localMovie.expand?.global_values?.character_map_status === 'pending' || localMovie.expand?.global_values?.character_map_status === 'processing') ? (
                                 <View className="bg-indigo-50 dark:bg-gray-800 p-4 rounded-xl border border-indigo-100 dark:border-gray-700 flex-row items-center">
@@ -1158,6 +1168,98 @@ export const MovieDetailScreen = () => {
                         className="flex-1 bg-[#111827]"
                         scrollEnabled={false}
                     />
+                </View>
+            </Modal>
+            {/* Character Cards Modal */}
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={cardsModalVisible}
+                onRequestClose={() => {
+                    setCardsModalVisible(false);
+                    setSelectedCharacter(null);
+                }}
+            >
+                <View className="flex-1 bg-gray-900">
+                    {/* Header */}
+                    <View className="flex-row items-center justify-between p-4 border-b border-gray-800 bg-gray-900 shadow-md z-10" style={{ marginTop: insets.top }}>
+                        <Text className="text-white text-lg font-bold">Karakter Analizleri</Text>
+                        <TouchableOpacity
+                            onPress={() => {
+                                setCardsModalVisible(false);
+                                setSelectedCharacter(null);
+                            }}
+                            className="p-2 bg-gray-800 rounded-full"
+                        >
+                            <Icon name="close" size={24} color="white" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <ScrollView className="flex-1 px-4 pt-4">
+                        {localMovie?.expand?.global_values?.character_map?.nodes?.map((node: any, index: number) => {
+                            const isSelected = selectedCharacter?.id === node.id;
+
+                            // Find relationships for this character
+                            const relationships = localMovie?.expand?.global_values?.character_map?.links?.filter((link: any) =>
+                                link.source === node.id || link.target === node.id
+                            ) || [];
+
+                            return (
+                                <TouchableOpacity
+                                    key={index}
+                                    activeOpacity={0.9}
+                                    onPress={() => setSelectedCharacter(isSelected ? null : node)}
+                                    className={`mb-4 rounded-xl overflow-hidden border ${isSelected ? 'border-indigo-500 bg-gray-800' : 'border-gray-800 bg-gray-800/50'}`}
+                                >
+                                    <View className="p-4">
+                                        <View className="flex-row justify-between items-start mb-2">
+                                            <View className="flex-row items-center">
+                                                <View className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${node.group === 'Protagonist' ? 'bg-indigo-500' :
+                                                    node.group === 'Antagonist' ? 'bg-red-500' :
+                                                        'bg-gray-600'
+                                                    }`}>
+                                                    <Text className="text-white font-bold text-lg">{node.id.charAt(0)}</Text>
+                                                </View>
+                                                <View>
+                                                    <Text className="text-white font-bold text-lg">{node.id}</Text>
+                                                    <Text className={`text-xs font-medium ${node.group === 'Protagonist' ? 'text-indigo-400' :
+                                                        node.group === 'Antagonist' ? 'text-red-400' :
+                                                            'text-gray-400'
+                                                        }`}>{node.group}</Text>
+                                                </View>
+                                            </View>
+                                            <Icon name={isSelected ? "chevron-up" : "chevron-down"} size={24} color="#9CA3AF" />
+                                        </View>
+
+                                        {isSelected && (
+                                            <View className="mt-2 border-t border-gray-700 pt-3">
+                                                <Text className="text-gray-300 leading-6 mb-4">{node.bio}</Text>
+
+                                                {relationships.length > 0 && (
+                                                    <View>
+                                                        <Text className="text-gray-500 text-xs font-bold mb-2 uppercase tracking-wider">İlişkiler</Text>
+                                                        {relationships.map((rel: any, rIdx: number) => {
+                                                            const isSource = rel.source === node.id;
+                                                            const otherChar = isSource ? rel.target : rel.source;
+                                                            return (
+                                                                <View key={rIdx} className="flex-row items-center mb-2 bg-gray-900/50 p-2 rounded">
+                                                                    <Icon name="arrow-right-thin" size={16} color="#6366F1" className="mr-2" style={{ opacity: 0.7 }} />
+                                                                    <Text className="text-gray-400 text-xs">
+                                                                        <Text className="text-white font-bold">{otherChar}</Text> ile <Text className="text-indigo-300">{rel.label}</Text> ({rel.type})
+                                                                    </Text>
+                                                                </View>
+                                                            );
+                                                        })}
+                                                    </View>
+                                                )}
+                                            </View>
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+                        <View className="h-20" />
+                    </ScrollView>
                 </View>
             </Modal>
         </View>

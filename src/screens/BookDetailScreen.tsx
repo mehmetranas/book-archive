@@ -77,6 +77,7 @@ export const BookDetailScreen = () => {
     const [activeQuoteIndex, setActiveQuoteIndex] = useState(0);
     const [quoteLoading, setQuoteLoading] = useState(false);
     const [loadingItems, setLoadingItems] = useState<Record<string, boolean>>({});
+    const [hiddenImages, setHiddenImages] = useState<{ [key: string]: boolean }>({});
 
     // Refs for capturing screenshots of each slide
     const viewShotRefs = useRef<{ [key: string]: ViewShot | null }>({});
@@ -731,14 +732,14 @@ export const BookDetailScreen = () => {
                                                         {/* Full Aspect Square Container */}
                                                         <View className="relative w-full aspect-square bg-gray-900 overflow-hidden">
                                                             {/* Background Image */}
-                                                            {hasImage && imageUrl ? (
+                                                            {hasImage && imageUrl && !hiddenImages[item.id] ? (
                                                                 <Image
                                                                     source={{ uri: imageUrl }}
                                                                     className="w-full h-full absolute inset-0"
                                                                     resizeMode="cover"
                                                                 />
                                                             ) : (
-                                                                // Placeholder Gradient Background if no image
+                                                                // Placeholder Gradient Background if no image or hidden
                                                                 <View className="w-full h-full absolute inset-0 bg-transparent">
                                                                     <View className="absolute inset-0 bg-purple-900" />
                                                                     <View className="absolute top-0 right-0 w-64 h-64 bg-purple-600 rounded-full blur-3xl opacity-50" />
@@ -801,91 +802,116 @@ export const BookDetailScreen = () => {
                                                     {/* Action Buttons */}
                                                     <View className="p-4 border-t border-gray-100 dark:border-gray-700 flex-row gap-3">
                                                         {hasImage ? (
-                                                            <TouchableOpacity
-                                                                className="flex-1 bg-gray-900 dark:bg-white py-3 rounded-xl flex-row items-center justify-center shadow-sm"
-                                                                onPress={async () => {
-                                                                    try {
-                                                                        const uri = await viewShotRefs.current[item.id]?.capture();
-                                                                        if (uri) {
-                                                                            await Share.share({ url: uri });
+                                                            <>
+                                                                {/* Toggle Image Visibility */}
+                                                                <TouchableOpacity
+                                                                    className="flex-1 bg-gray-100 dark:bg-gray-800 py-3 rounded-xl flex-row items-center justify-center border border-gray-200 dark:border-gray-700"
+                                                                    onPress={() => {
+                                                                        setHiddenImages(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                                                                    }}
+                                                                >
+                                                                    <Icon name={hiddenImages[item.id] ? "image" : "image-off"} size={18} color="#6B7280" className="mr-2" />
+                                                                    <Text className="font-bold text-gray-700 dark:text-gray-300">
+                                                                        {hiddenImages[item.id] ? 'Görseli Aç' : 'Görseli Kapat'}
+                                                                    </Text>
+                                                                </TouchableOpacity>
+
+                                                                {/* Share Button (Image Mode) */}
+                                                                <TouchableOpacity
+                                                                    className="flex-1 bg-gray-900 dark:bg-white py-3 rounded-xl flex-row items-center justify-center shadow-sm"
+                                                                    onPress={async () => {
+                                                                        try {
+                                                                            const viewShot = viewShotRefs.current[item.id];
+                                                                            // Safe capture using casting or checking method existence
+                                                                            if (viewShot && typeof viewShot.capture === 'function') {
+                                                                                const uri = await viewShot.capture();
+                                                                                if (uri) await Share.share({ url: uri });
+                                                                            }
+                                                                        } catch (e) {
+                                                                            console.log(e);
                                                                         }
-                                                                    } catch (e) {
-                                                                        console.log(e);
-                                                                    }
-                                                                }}
-                                                            >
-                                                                <Icon name="share-variant" size={18} color={isDark ? "black" : "white"} className="mr-2" />
-                                                                <Text className={`font-bold ${isDark ? 'text-gray-900' : 'text-white'}`}>
-                                                                    {t('common.share', 'Paylaş')}
-                                                                </Text>
-                                                            </TouchableOpacity>
+                                                                    }}
+                                                                >
+                                                                    <Icon name="share-variant" size={18} color={isDark ? "black" : "white"} className="mr-2" />
+                                                                    <Text className={`font-bold ${isDark ? 'text-gray-900' : 'text-white'}`}>
+                                                                        {t('common.share', 'Paylaş')}
+                                                                    </Text>
+                                                                </TouchableOpacity>
+                                                            </>
                                                         ) : (
-                                                            <TouchableOpacity
-                                                                className={`flex-1 py-3 rounded-xl flex-row items-center justify-center shadow-lg dark:shadow-none ${loadingItems[item.id] ? 'bg-gray-100 dark:bg-gray-800' : 'bg-purple-600 shadow-purple-200'}`}
-                                                                disabled={loadingItems[item.id]}
-                                                                onPress={async () => {
-                                                                    const imagePrompt = item.imagePrompt;
-                                                                    if (!imagePrompt) return;
+                                                            <>
+                                                                {/* Generate Image Button */}
+                                                                <TouchableOpacity
+                                                                    className={`flex-1 py-3 rounded-xl flex-row items-center justify-center shadow-lg dark:shadow-none ${loadingItems[item.id] ? 'bg-gray-100 dark:bg-gray-800' : 'bg-purple-600 shadow-purple-200'}`}
+                                                                    disabled={loadingItems[item.id]}
+                                                                    onPress={async () => {
+                                                                        const imagePrompt = item.imagePrompt;
+                                                                        if (!imagePrompt) return;
 
-                                                                    try {
-                                                                        // Set loading only for this item
-                                                                        setLoadingItems(prev => ({ ...prev, [item.id]: true }));
-                                                                        console.log("Requesting image for content:", item.id);
+                                                                        try {
+                                                                            setLoadingItems(prev => ({ ...prev, [item.id]: true }));
 
-                                                                        const res = await pb.send("/api/ai/quote-image-v2", {
-                                                                            body: {
-                                                                                id: book.id,
-                                                                                contentId: item.id
-                                                                            },
-                                                                            method: 'POST'
-                                                                        });
-                                                                        console.log("Image Gen Res:", res);
-
-                                                                        // 1. Manuel Cache Update (Instant Feedback)
-                                                                        if (res.fileName) {
-                                                                            queryClient.setQueryData(['book', book.id], (oldData: any) => {
-                                                                                if (!oldData) return oldData;
-                                                                                // Clone generated_content
-                                                                                const newContent = oldData.generated_content.map((c: any) => {
-                                                                                    if (c.id === item.id) {
-                                                                                        return { ...c, image: res.fileName };
-                                                                                    }
-                                                                                    return c;
-                                                                                });
-                                                                                return { ...oldData, generated_content: newContent };
+                                                                            const res = await pb.send("/api/ai/quote-image-v2", {
+                                                                                body: {
+                                                                                    id: book.id,
+                                                                                    contentId: item.id
+                                                                                },
+                                                                                method: 'POST'
                                                                             });
+
+                                                                            if (res.fileName) {
+                                                                                queryClient.setQueryData(['book', book.id], (oldData: any) => {
+                                                                                    if (!oldData) return oldData;
+                                                                                    const newContent = oldData.generated_content.map((c: any) => {
+                                                                                        if (c.id === item.id) {
+                                                                                            return { ...c, image: res.fileName };
+                                                                                        }
+                                                                                        return c;
+                                                                                    });
+                                                                                    return { ...oldData, generated_content: newContent };
+                                                                                });
+                                                                                Toast.show({ type: 'success', text1: 'Görsel oluşturuldu!' });
+                                                                            }
+
+                                                                        } catch (e: any) {
+                                                                            console.log("Image Gen Error:", e);
+                                                                            Alert.alert("Hata", "Görsel oluşturulamadı. Lütfen tekrar deneyin.");
+                                                                        } finally {
+                                                                            setLoadingItems(prev => ({ ...prev, [item.id]: false }));
                                                                         }
+                                                                    }}
+                                                                >
+                                                                    {loadingItems[item.id] ? (
+                                                                        <ActivityIndicator size="small" color="#9333EA" />
+                                                                    ) : (
+                                                                        <>
+                                                                            <Icon name="palette" size={18} color="white" className="mr-2" />
+                                                                            <Text className="font-bold text-white">Görsel İşle</Text>
+                                                                        </>
+                                                                    )}
+                                                                </TouchableOpacity>
 
-                                                                        // 2. Invalidate to be sure (background refetch)
-                                                                        queryClient.invalidateQueries({ queryKey: ['book', book.id] });
-                                                                        Toast.show({ type: 'success', text1: 'Görsel oluşturuldu!' });
-
-                                                                    } catch (e: any) {
-                                                                        console.error("Quote Image Error:", e);
-                                                                        const errMsg = e?.data?.error || e?.message || JSON.stringify(e);
-                                                                        Alert.alert("Hata", `Görsel üretilemedi: ${errMsg}`);
-                                                                    } finally {
-                                                                        // Clear loading
-                                                                        setLoadingItems(prev => ({ ...prev, [item.id]: false }));
-                                                                    }
-                                                                }}
-                                                            >
-                                                                {loadingItems[item.id] ? (
-                                                                    <>
-                                                                        <ActivityIndicator size="small" color="#9333EA" className="mr-2" />
-                                                                        <Text className="text-gray-500 dark:text-gray-400 font-medium text-xs">
-                                                                            İşleniyor...
-                                                                        </Text>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <Icon name="palette" size={18} color="white" className="mr-2" />
-                                                                        <Text className="font-bold text-white">
-                                                                            {t('detail.visualize', 'Görselleştir')}
-                                                                        </Text>
-                                                                    </>
-                                                                )}
-                                                            </TouchableOpacity>
+                                                                {/* Share Button (Default/Gradient Mode) */}
+                                                                <TouchableOpacity
+                                                                    className="flex-1 bg-gray-200 dark:bg-gray-700 py-3 rounded-xl flex-row items-center justify-center shadow-sm"
+                                                                    onPress={async () => {
+                                                                        try {
+                                                                            const viewShot = viewShotRefs.current[item.id];
+                                                                            if (viewShot && typeof viewShot.capture === 'function') {
+                                                                                const uri = await viewShot.capture();
+                                                                                if (uri) await Share.share({ url: uri });
+                                                                            }
+                                                                        } catch (e) {
+                                                                            console.log(e);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <Icon name="share-variant" size={18} color={isDark ? "white" : "black"} className="mr-2" />
+                                                                    <Text className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                                        {t('common.share', 'Paylaş')}
+                                                                    </Text>
+                                                                </TouchableOpacity>
+                                                            </>
                                                         )}
                                                     </View>
                                                 </View>
