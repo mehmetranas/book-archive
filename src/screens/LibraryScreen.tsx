@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Modal, TextInput, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { FlashList } from '@shopify/flash-list';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { pb } from '../services/pocketbase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -61,15 +61,97 @@ export const LibraryScreen = () => {
     const [manualTitle, setManualTitle] = useState('');
     const [manualAuthor, setManualAuthor] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedStatus, setSelectedStatus] = useState('all');
 
-    const { data: books, isLoading, error, refetch } = useQuery({
-        queryKey: ['books'],
-        queryFn: async () => {
-            return await pb.collection('books').getFullList<Book>({
+    // React Query - Infinite Scroll
+    const {
+        data,
+        isLoading,
+        error,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        refetch
+    } = useInfiniteQuery({
+        queryKey: ['books', searchQuery, selectedStatus],
+        initialPageParam: 1,
+        queryFn: async ({ pageParam = 1 }) => {
+            const filterParts = [];
+
+            if (searchQuery) {
+                const cleanQuery = searchQuery.replace(/"/g, '\\"');
+                filterParts.push(`(title ~ "${cleanQuery}" || authors ~ "${cleanQuery}")`);
+            }
+
+            if (selectedStatus === 'archived') {
+                filterParts.push('is_archived = true');
+            } else if (selectedStatus === 'in_library') {
+                filterParts.push('in_library = true');
+                filterParts.push('is_archived = false');
+            } else {
+                // Normal filters show non-archived books
+                filterParts.push('is_archived = false');
+
+                if (selectedStatus !== 'all') {
+                    filterParts.push(`status = "${selectedStatus}"`);
+                }
+            }
+
+            const filterString = filterParts.join(' && ');
+
+            return await pb.collection('books').getList<Book>(pageParam, 20, {
                 sort: '-created',
+                filter: filterString,
             });
         },
+        getNextPageParam: (lastPage: any) => {
+            return lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined;
+        },
     });
+
+    const books = React.useMemo(() => data?.pages.flatMap(page => page.items) || [], [data]);
+
+    // ... (mutations kept same) ...
+
+    const renderFilters = () => {
+        const filters = [
+            { id: 'all', label: t('common.all', 'Tümü') },
+            { id: 'in_library', label: t('library.inLibrary', 'Kütüphanemde') },
+            { id: 'want_to_read', label: t('status.wantToRead', 'Okunacak') },
+            { id: 'reading', label: t('status.reading', 'Okunuyor') },
+            { id: 'read', label: t('status.read', 'Bitenler') },
+            { id: 'archived', label: t('status.archived', 'Arşiv') },
+        ];
+
+        return (
+            <View>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12 }}
+                    className="border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900"
+                >
+                    {filters.map((filter) => (
+                        <TouchableOpacity
+                            key={filter.id}
+                            onPress={() => setSelectedStatus(filter.id)}
+                            className={`mr-2 px-4 py-1.5 rounded-full border ${selectedStatus === filter.id
+                                ? 'bg-slate-800 border-slate-800 dark:bg-slate-200 dark:border-slate-200'
+                                : 'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700'
+                                }`}
+                        >
+                            <Text className={`font-medium text-xs ${selectedStatus === filter.id
+                                ? 'text-white dark:text-slate-900'
+                                : 'text-gray-600 dark:text-gray-300'
+                                }`}>
+                                {filter.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+        );
+    };
 
     const addManualBookMutation = useMutation({
         mutationFn: async () => {
@@ -266,6 +348,9 @@ export const LibraryScreen = () => {
                 </View>
             </View>
 
+            {/* Filters */}
+            {renderFilters()}
+
             {isLoading ? (
                 <View className="flex-1 items-center justify-center">
                     <ActivityIndicator size="large" color="#3B82F6" />
@@ -282,20 +367,26 @@ export const LibraryScreen = () => {
                 </View>
             ) : (
                 <FlashList<Book>
-                    data={books?.filter(book => {
-                        const query = searchQuery.toLowerCase();
-                        const authors = Array.isArray(book.authors) ? book.authors.join(' ') : (book.authors || '');
-                        return (
-                            book.title.toLowerCase().includes(query) ||
-                            authors.toLowerCase().includes(query)
-                        );
-                    }) || []}
+                    data={books}
                     renderItem={renderItem}
                     keyExtractor={(item) => item.id}
                     estimatedItemSize={88}
                     contentContainerStyle={{ paddingTop: 16, paddingBottom: 80 }}
                     refreshControl={
                         <RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor="#3B82F6" />
+                    }
+                    onEndReached={() => {
+                        if (hasNextPage && !isFetchingNextPage) {
+                            fetchNextPage();
+                        }
+                    }}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={
+                        isFetchingNextPage ? (
+                            <View className="py-4">
+                                <ActivityIndicator size="small" color="#3B82F6" />
+                            </View>
+                        ) : null
                     }
                     ListEmptyComponent={
                         <View className="items-center justify-center mt-20 px-4">
