@@ -27,6 +27,10 @@ export interface Movie {
     is_archived?: boolean;
     certification?: string;
     type?: 'movie' | 'tv';
+    vibe_status?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
+    vibes?: string[];
+    mood_color?: string;
+    ai_summary?: string;
 }
 
 export const MovieLibraryScreen = () => {

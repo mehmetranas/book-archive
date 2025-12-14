@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert, StatusBar, Dimensions, Animated, Linking, Modal } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert, StatusBar, Dimensions, Animated, Linking, Modal, RefreshControl } from 'react-native';
+import Toast from 'react-native-toast-message';
 import YoutubePlayer from "react-native-youtube-iframe";
 import { WebView } from 'react-native-webview';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -32,9 +33,10 @@ export const MovieDetailScreen = () => {
     const initialMediaType = params.mediaType || 'movie';
     const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
     const [imdbModalVisible, setImdbModalVisible] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     // 1. Fetch Local Movie Data (to check if saved and get details)
-    const { data: localMovie, isLoading: isLocalLoading } = useQuery({
+    const { data: localMovie, isLoading: isLocalLoading, refetch: refetchLocal } = useQuery({
         queryKey: ['localMovie', initialMovieId, initialTmdbId],
         queryFn: async () => {
             try {
@@ -60,7 +62,13 @@ export const MovieDetailScreen = () => {
 
     // 2. Fetch TMDB Details Data using new hook
     // 2. Fetch TMDB Details Data using new hook
-    const { data: tmdbMovie, isLoading: isTmdbLoading, error: tmdbError } = useMovieDetails(activeTmdbId || 0, initialMediaType);
+    const { data: tmdbMovie, isLoading: isTmdbLoading, error: tmdbError, refetch: refetchTmdb } = useMovieDetails(activeTmdbId || 0, initialMediaType);
+
+    const onRefresh = React.useCallback(async () => {
+        setRefreshing(true);
+        await Promise.all([refetchLocal(), refetchTmdb()]);
+        setRefreshing(false);
+    }, [refetchLocal, refetchTmdb]);
 
     // Add Movie Mutation
     const addMutation = useMutation({
@@ -238,35 +246,69 @@ export const MovieDetailScreen = () => {
                     </Animated.Text>
 
                     {/* Add / Delete Action Button */}
-                    {localMovie ? (
-                        <TouchableOpacity
-                            onPress={handleDelete}
-                            className="w-10 h-10 rounded-full items-center justify-center z-10"
-                            style={{ backgroundColor: 'rgba(239, 68, 68, 0.8)' }}
-                        >
-                            <Icon name="trash-can-outline" size={20} color="white" />
-                        </TouchableOpacity>
-                    ) : (
-                        <TouchableOpacity
-                            onPress={() => addMutation.mutate()}
-                            disabled={addMutation.isPending}
-                            className="w-10 h-10 rounded-full items-center justify-center z-10"
-                            style={{ backgroundColor: 'rgba(59, 130, 246, 0.8)' }}
-                        >
-                            {addMutation.isPending ? (
-                                <ActivityIndicator size="small" color="white" />
-                            ) : (
-                                <Icon name="plus" size={24} color="white" />
-                            )}
-                        </TouchableOpacity>
-                    )}
+                    <View className="flex-row items-center gap-2">
+                        {localMovie && (localMovie.vibe_status === 'none' || !localMovie.vibe_status) && (
+                            <TouchableOpacity
+                                onPress={async () => {
+                                    if (!localMovie) return;
+                                    try {
+                                        await pb.collection('movies').update(localMovie.id, {
+                                            vibe_status: 'pending'
+                                        });
+                                        queryClient.invalidateQueries({ queryKey: ['localMovie'] });
+                                        Toast.show({
+                                            type: 'success',
+                                            text1: "Analiz Başlatıldı",
+                                            text2: "Filmin atmosfer analizi arka planda başlatıldı.",
+                                            position: 'top'
+                                        });
+                                    } catch (e) {
+                                        Toast.show({
+                                            type: 'error',
+                                            text1: "Hata",
+                                            text2: "Analiz başlatılamadı.",
+                                            position: 'bottom'
+                                        });
+                                    }
+                                }}
+                                className="flex-row items-center bg-indigo-600/90 border border-indigo-400/30 px-3 py-1.5 rounded-full"
+                            >
+                                <Icon name="creation" size={16} color="white" />
+                                <Text className="text-white text-xs font-bold ml-1.5">Vibe</Text>
+                            </TouchableOpacity>
+                        )}
+
+                        {localMovie ? (
+                            <TouchableOpacity
+                                onPress={handleDelete}
+                                className="w-10 h-10 rounded-full items-center justify-center bg-red-500/80"
+                            >
+                                <Icon name="trash-can-outline" size={20} color="white" />
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity
+                                onPress={() => addMutation.mutate()}
+                                disabled={addMutation.isPending}
+                                className="w-10 h-10 rounded-full items-center justify-center bg-blue-500/80"
+                            >
+                                {addMutation.isPending ? (
+                                    <ActivityIndicator size="small" color="white" />
+                                ) : (
+                                    <Icon name="plus" size={24} color="white" />
+                                )}
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
             </View>
 
             <Animated.ScrollView
                 className="flex-1"
                 contentContainerStyle={{ paddingBottom: 100 }}
-                bounces={false}
+                bounces={true}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3B82F6" progressViewOffset={insets.top + 60} />
+                }
                 onScroll={Animated.event(
                     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
                     { useNativeDriver: true }
@@ -342,11 +384,61 @@ export const MovieDetailScreen = () => {
                                 "{tmdbMovie.tagline}"
                             </Text>
                         ) : null}
+
+
                     </View>
                 </View>
 
                 {/* Content Body */}
                 <View className="px-6 pt-4">
+
+                    {/* VIBE RESULTS (When Completed) */}
+                    {localMovie && (localMovie.vibe_status === 'completed' && localMovie.vibes) && (
+                        <View className="mb-6">
+
+                            <View>
+                                {/* Vibe Tags - Flex Wrap Layout */}
+                                <View className="flex-row flex-wrap gap-2 mb-4">
+                                    {localMovie.vibes.map((vibe: string, i: number) => (
+                                        <View
+                                            key={i}
+                                            className="px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 shadow-sm"
+                                            style={{ backgroundColor: localMovie.mood_color ? `${localMovie.mood_color}30` : '#F3F4F6' }}
+                                        >
+                                            <Text
+                                                className="text-xs font-bold"
+                                                style={{ color: localMovie.mood_color || '#1F2937' }}
+                                            >
+                                                {vibe}
+                                            </Text>
+                                        </View>
+                                    ))}
+                                </View>
+
+                                {/* AI Mood Summary */}
+                                {localMovie.ai_summary && (
+                                    <View
+                                        className="p-3 rounded-lg border-l-4 bg-gray-50 dark:bg-gray-800 shadow-sm"
+                                        style={{ borderLeftColor: localMovie.mood_color || '#6366F1' }}
+                                    >
+                                        <Text className="text-gray-700 dark:text-gray-300 text-sm italic leading-5 font-medium">
+                                            "{localMovie.ai_summary}"
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
+                        </View>
+                    )}
+
+                    {/* Pending State display in content body instead of header */}
+                    {localMovie && (localMovie.vibe_status === 'pending' || localMovie.vibe_status === 'processing') && (
+                        <View className="mb-6 flex-row items-center bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800">
+                            <ActivityIndicator size="small" color="#6366F1" />
+                            <Text className="text-indigo-600 dark:text-indigo-300 text-sm font-medium ml-3">
+                                Yapay zeka film atmosferini analiz ediyor...
+                            </Text>
+                        </View>
+                    )}
                     {/* Watch Providers (TR) */}
                     {tmdbMovie?.['watch/providers']?.results?.TR && (
                         <View className="mb-6">
