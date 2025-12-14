@@ -78,11 +78,18 @@ export const BarcodeScannerScreen = () => {
             } catch (e) { }
 
             setTimeout(() => {
-                // Nested navigation: MainTabs -> Search
-                navigation.navigate('MainTabs', {
-                    screen: 'Search',
-                    params: { scannedIsbn: scannedISBN }
-                });
+                // 1. Close the modal first
+                navigation.goBack();
+
+                // 2. Then navigate to the Search screen with data
+                // We use a small delay or just call it directly. 
+                // Since we popped, we are back at MainTabs. Now switch to Search tab.
+                setTimeout(() => {
+                    navigation.navigate('MainTabs', {
+                        screen: 'Search',
+                        params: { scannedIsbn: scannedISBN }
+                    });
+                }, 100);
             }, 100);
         }
     }, [isScanning, navigation]);
