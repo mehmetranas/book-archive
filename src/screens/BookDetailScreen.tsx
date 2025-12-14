@@ -780,9 +780,14 @@ export const BookDetailScreen = () => {
                                                                     {/* Author Section - Fixed at Bottom with padding */}
                                                                     <View className="w-full flex-row items-center justify-center pt-4 pb-2">
                                                                         <View className="h-[1px] bg-white/40 flex-1 max-w-[40px] mr-3" />
-                                                                        <Text className="text-white/90 text-[10px] font-bold uppercase tracking-[2px] text-center" numberOfLines={1}>
-                                                                            {book.authors?.[0] || 'Unknown'}
-                                                                        </Text>
+                                                                        <View className="items-center justify-center max-w-[200px]">
+                                                                            <Text className="text-white/90 text-[10px] font-bold uppercase tracking-[2px] text-center" numberOfLines={1}>
+                                                                                {book.authors?.[0] || 'Unknown'}
+                                                                            </Text>
+                                                                            <Text className="text-white/70 text-[9px] font-medium tracking-wide text-center mt-1" numberOfLines={1}>
+                                                                                {book.title}
+                                                                            </Text>
+                                                                        </View>
                                                                         <View className="h-[1px] bg-white/40 flex-1 max-w-[40px] ml-3" />
                                                                     </View>
 
