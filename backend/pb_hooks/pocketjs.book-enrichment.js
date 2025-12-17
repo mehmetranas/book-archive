@@ -103,23 +103,31 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
             try {
                 // --- PROMPT ---
                 const promptText = `
-                    Gorev: Asagidaki kitap icin Turkce detayli icerik olustur.
-                    Kitap: "${title}"
-                    Yazar: "${author}"
+                    ### ROLE
+                    You are an expert Literary Data Analyst and Librarian AI. Your task is to generate structured, high-quality metadata for a given book to populate a "Second Brain" reading application.
 
-                    İstenen Cikti (JSON Formatinda):
+                    ### INPUT DATA
+                    Book Title: "${title}"
+                    Author: "${author}"
+
+                    ### OUTPUT FORMAT
+                    You must output a SINGLE valid JSON object. Do not include markdown formatting (json), preambles, or explanations.
+
+                    ### JSON SCHEMA & CONTENT RULES
                     {
-                        "description": "Kitabin detayli, ilgi cekici ve baglayici bir ozeti (en az 3-4 cumle). Eger zaten varsa, onu daha edebi hale getir.",
-                        "tags": ["Etiket1", "Etiket2", "Etiket3", "Etiket4", "Etiket5"],
-                        "page_count": 300
+                    "description": "String. A detailed, engaging, and literary summary of the book (3-4 sentences). It should capture the plot and the philosophical depth. LANGUAGE: TURKISH.",
+                    "tags": ["String", "String", ...], // Array of strings. 5-7 conceptual tags (e.g., 'varoluşçuluk', 'baba-oğul', 'distopya'). Lowercase. LANGUAGE: TURKISH.
+                    "page_count": Integer, // Estimated page count.
+                    "spotify_keyword": "String. The BEST search query to find a matching 'ambient' or 'mood' playlist on Spotify. Focus on genre, mood, and instruments (e.g., 'gloomy cello', 'dark academia', 'jazz noir'). LANGUAGE: ENGLISH (Must be English for better API results).",
+                    "primary_color": "String", // HEX color code (e.g., '#2A2A2A') that best represents the book's cover or atmosphere.
+                    "mood": "String" // One word summary of the atmosphere (e.g., 'Melankolik', 'Gergin', 'Epik'). LANGUAGE: TURKISH.
                     }
-                    
-                    Kurallar:
-                    - "page_count" degeri kitabin tahmini sayfa sayisi olmali (tam sayı).
-                    - Sadece gecerli bir JSON dondur.
-                    - Dil tamamen TURKCE olsun.
-                    - Markdown kullanma.
-                `;
+
+                    ### CONSTRAINTS
+                    - Ensure the JSON is valid and parsable.
+                    - The 'spotify_keyword' must be in English to ensure high-quality playlist results from the Spotify API.
+                    - The 'description' and 'tags' must be in TURKISH to fit the user's library language.
+                                    `;
 
                 // --- Pollinations AI Request ---
                 const pollinationKey = $os.getenv("POLLINATION_KEY") || "";
@@ -170,10 +178,20 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
                     book.set("page_count", parseInt(aiData.page_count));
                 }
 
-                // ai_notes alanina etiketleri veya ekstra bilgileri koyabiliriz
-                // Tagleri kaydet (DB'de 'tags' adinda JSON alani olmali)
+                // Tagleri kaydet
                 if (aiData.tags && Array.isArray(aiData.tags)) {
                     book.set("tags", aiData.tags);
+                }
+
+                // Yeni Alanlar (Spotify & Mood)
+                if (aiData.spotify_keyword) {
+                    book.set("spotify_keyword", aiData.spotify_keyword);
+                }
+                if (aiData.mood) {
+                    book.set("mood", aiData.mood);
+                }
+                if (aiData.primary_color) {
+                    book.set("primary_color", aiData.primary_color);
                 }
 
                 book.set("enrichment_status", "completed");
