@@ -354,8 +354,8 @@ export const MovieDetailScreen = () => {
     const activeTmdbId = localMovie ? Number(localMovie.tmdb_id) : initialTmdbId;
 
     // 2. Fetch TMDB Details Data using new hook
-    // 2. Fetch TMDB Details Data using new hook
-    const { data: tmdbMovie, isLoading: isTmdbLoading, error: tmdbError, refetch: refetchTmdb } = useMovieDetails(activeTmdbId || 0, initialMediaType);
+    const activeMediaType = localMovie?.type || initialMediaType;
+    const { data: tmdbMovie, isLoading: isTmdbLoading, error: tmdbError, refetch: refetchTmdb } = useMovieDetails(activeTmdbId || 0, activeMediaType);
 
     const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
