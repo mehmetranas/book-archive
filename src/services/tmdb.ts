@@ -174,7 +174,37 @@ export const getMovieDetailsProxy = (tmdbId: number) => {
  */
 export const getTVDetailsProxy = (tmdbId: number) => {
     return tmdbRequest<TMDBDetailResponse>(`tv/${tmdbId}`, {
-        append_to_response: "credits,videos,similar,watch/providers,content_ratings,external_ids", // TV için release_dates yerine content_ratings
+        append_to_response: "credits,videos,similar,watch/providers,content_ratings,external_ids",
+        language: "tr-TR"
+    });
+};
+
+/**
+ * Günün Trendleri (Film + Dizi karışık)
+ * @param timeWindow 'day' | 'week'
+ */
+export const getTrendingProxy = (timeWindow: 'day' | 'week' = 'day') => {
+    return tmdbRequest<TMDBSearchResponse>(`trending/all/${timeWindow}`, {
+        language: "tr-TR"
+    });
+};
+
+/**
+ * En İyi Filmler (Top Rated)
+ */
+export const getTopRatedMoviesProxy = (page = 1) => {
+    return tmdbRequest<TMDBSearchResponse>("movie/top_rated", {
+        page: page,
+        language: "tr-TR"
+    });
+};
+
+/**
+ * Popüler Diziler
+ */
+export const getPopularTVProxy = (page = 1) => {
+    return tmdbRequest<TMDBSearchResponse>("tv/popular", {
+        page: page,
         language: "tr-TR"
     });
 };
@@ -194,16 +224,11 @@ export const addMovieToLibrary = async (movie: Movie | TMDBDetailResponse) => {
     // 2. Extract Certification
     let certificate = '';
     if (isTv) {
-        // TV Content Ratings
-        // Assuming response structure might be slightly different or mapped to same interface
-        // Real TMDB TV response has `content_ratings` instead of `release_dates`
-        // We'll trust the proxy returns whatever we asked.
         const ratings = (fullDetails as any).content_ratings?.results || [];
         const trRating = ratings.find((r: any) => r.iso_3166_1 === 'TR');
         const usRating = ratings.find((r: any) => r.iso_3166_1 === 'US');
         certificate = trRating?.rating || usRating?.rating || '';
     } else {
-        // Movie Release Dates
         const releaseDates = fullDetails.release_dates?.results || [];
         const trRelease = releaseDates.find((r) => r.iso_3166_1 === 'TR');
         const usRelease = releaseDates.find((r) => r.iso_3166_1 === 'US');
@@ -215,18 +240,11 @@ export const addMovieToLibrary = async (movie: Movie | TMDBDetailResponse) => {
     }
 
     // 3. Extract Common Data
-    // TV shows have `name` and `first_air_date` instead of `title` and `release_date`.
-    // The Interface `TMDBDetailResponse` extends `Movie` which has `title`.
-    // We cast or access dynamic properties for TV.
-
     const title = isTv ? (fullDetails as any).name : fullDetails.title;
     const releaseDate = isTv ? (fullDetails as any).first_air_date : fullDetails.release_date;
-    const runtime = fullDetails.runtime || (fullDetails as any).episode_run_time?.[0] || 0; // TV has episode_run_time array
+    const runtime = fullDetails.runtime || (fullDetails as any).episode_run_time?.[0] || 0;
     const genres = fullDetails.genres?.map(g => g.name) || [];
 
-    // Director for TV implies Creator usually, or we search crew.
-    // TV credits crew often contains 'Executive Producer' or 'Series Director'.
-    // We'll stick to 'Director' search, usually found in episode credits but show details has 'created_by'.
     let director = '';
     if (isTv) {
         const creators = (fullDetails as any).created_by;

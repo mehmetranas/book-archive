@@ -1,0 +1,1 @@
+- bana başlıyorum diye bilgi verme sana verdiğim komutları hemen yerine getir
