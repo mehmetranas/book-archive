@@ -16,6 +16,7 @@ export interface GoogleBookVolumeInfo {
         type: string;
         identifier: string;
     }>;
+    pageCount?: number;
 }
 
 export interface GoogleBookItem {

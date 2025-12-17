@@ -110,10 +110,12 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
                     İstenen Cikti (JSON Formatinda):
                     {
                         "description": "Kitabin detayli, ilgi cekici ve baglayici bir ozeti (en az 3-4 cumle). Eger zaten varsa, onu daha edebi hale getir.",
-                        "tags": ["Etiket1", "Etiket2", "Etiket3", "Etiket4", "Etiket5"]
+                        "tags": ["Etiket1", "Etiket2", "Etiket3", "Etiket4", "Etiket5"],
+                        "page_count": 300
                     }
                     
                     Kurallar:
+                    - "page_count" degeri kitabin tahmini sayfa sayisi olmali (tam sayı).
                     - Sadece gecerli bir JSON dondur.
                     - Dil tamamen TURKCE olsun.
                     - Markdown kullanma.
@@ -160,6 +162,12 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
 
                 if (currentDesc.length < 50 && aiData.description) {
                     book.set("description", aiData.description);
+                }
+
+                // Eger sayfa sayisi yoksa veya 0 ise AI'in tahminini kullan
+                const currentPageCount = book.getInt("page_count");
+                if ((!currentPageCount || currentPageCount === 0) && aiData.page_count) {
+                    book.set("page_count", parseInt(aiData.page_count));
                 }
 
                 // ai_notes alanina etiketleri veya ekstra bilgileri koyabiliriz

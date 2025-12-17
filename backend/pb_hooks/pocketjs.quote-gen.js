@@ -92,31 +92,37 @@ routerAdd("POST", "/api/ai/quote", (c) => {
         // 3. Prepare AI Request
         const seed = Math.floor(Math.random() * 1000000);
         const promptText = `
-            Role: Expert Literary Curator.
-            Book: "${title}" by ${author}
-            Random Seed: ${seed}
+            Role: Senior Turkish Literary Editor & Cinematic Art Director.
+            Input Data: Book: "${title}" by ${author} | Seed: ${seed}
 
-            Task:
-            1. Provide a profound, iconic quote from this book in TURKISH.
-               - CRITICAL: It MUST be SHORT and concise (maximum 20-30 words).
-               - Perfect for an Instagram caption or visual card.
-               - If exact text is unavailable, generate a high-quality, philosophically consistent text that perfectly mimics the author's style.
-               - NEVER return "I cannot...", "Sorry...", or any apology.
-            
-            2. Create a detailed image generation prompt in ENGLISH.
-               - Visual style: Cinematic, atmospheric, high-end photography (Instagram/Pinterest style).
-               - Describe lighting, mood, and objects. No text in image.
+            Directives:
 
-            Return strictly in JSON format (no markdown):
+            1. THE QUOTE (Turkish):
+            - Select the most iconic, profound, or emotionally resonant quote from this book.
+            - TRANSLATION PROTOCOL: Do NOT translate literally word-for-word. Use "Semantic Localization".
+            - The Turkish output must flow naturally, using perfect grammar and literary vocabulary (Istanbul Turkish).
+            - It must sound like it was originally written in Turkish by a master author. Avoid robotic phrasing.
+            - Length: Short, punchy, shareable (Max 45 words).
+            - If the book is originally Turkish, use the exact original text.
+
+            2. THE VISUAL (English):
+            - Create a prompt for an AI image generator.
+            - Style: Minimalist, cinematic, moody, high-end editorial photography.
+            - Focus: Symbolic objects, lighting, and texture that represent the book's core theme.
+            - NO TEXT inside the image description.
+
+            3. OUTPUT FORMAT:
+            - Return STRICT JSON. No markdown formatting, no intro/outro.
+
             {
-              "quote": "The Turkish quote here (max 30 words)",
-              "imagePrompt": "Cinematic visual description in English"
+            "quote": "The polished Turkish quote string",
+            "imagePrompt": "The visual description string"
             }
         `;
 
         const pollinationKey = $os.getenv("POLLINATION_KEY") || "";
         const encodedPrompt = encodeURIComponent(promptText.trim());
-        const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=gemini-search&seed=${seed}&t=${new Date().getTime()}`;
+        const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=openai-fast&seed=${seed}&t=${new Date().getTime()}`;
 
         const res = $http.send({
             url: url,

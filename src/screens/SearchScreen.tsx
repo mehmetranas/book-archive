@@ -55,6 +55,7 @@ export const SearchScreen = () => {
                 status: 'want_to_read',
                 enrichment_status: 'pending',
                 isbn: isbn,
+                page_count: volumeInfo.pageCount || 0,
             };
 
             return await pb.collection('books').create(data);

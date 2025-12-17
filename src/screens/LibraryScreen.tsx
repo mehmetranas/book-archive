@@ -47,6 +47,7 @@ export interface Book {
     generated_image?: string;
     tags?: string[];
     expand?: any;
+    page_count?: number;
 }
 
 export const LibraryScreen = () => {
@@ -327,9 +328,24 @@ export const LibraryScreen = () => {
         >
             {/* Header */}
             <View className="p-4 bg-white dark:bg-gray-800 shadow-sm z-10">
-                <Text className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                    {t('library.title', 'Library')}
-                </Text>
+                <View className="flex-row items-center justify-between mb-4">
+                    <Text className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {t('library.title', 'Library')}
+                    </Text>
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('Profile')}
+                        className="w-8 h-8 rounded-full bg-blue-100 dark:bg-gray-700 items-center justify-center overflow-hidden"
+                    >
+                        {pb.authStore.record?.avatar ? (
+                            <Image
+                                source={{ uri: pb.files.getUrl(pb.authStore.record, pb.authStore.record.avatar) }}
+                                className="w-full h-full"
+                            />
+                        ) : (
+                            <Icon name="account" size={20} color="#3B82F6" />
+                        )}
+                    </TouchableOpacity>
+                </View>
                 <View className="flex-row items-center bg-gray-100 dark:bg-gray-700 rounded-lg px-3 py-2">
                     <Icon name="magnify" size={20} color="#9CA3AF" />
                     <TextInput

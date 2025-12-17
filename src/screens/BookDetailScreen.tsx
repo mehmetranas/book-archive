@@ -578,6 +578,14 @@ export const BookDetailScreen = () => {
                                 <AIStatusBadge status={book.enrichment_status} showLabel={true} />
                             </View>
                         )}
+                        {book.page_count > 0 && (
+                            <View className="mt-2 flex-row items-center">
+                                <Icon name="book-open-page-variant" size={16} color="#6B7280" className="mr-1" />
+                                <Text className="text-gray-600 dark:text-gray-400 text-sm">
+                                    {book.page_count} {t('common.pages', 'Sayfa')}
+                                </Text>
+                            </View>
+                        )}
                     </View>
                 </View>
 
@@ -933,115 +941,8 @@ export const BookDetailScreen = () => {
 
 
                 {/* Character Analysis Section */}
-                <View className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-20 mx-4">
-                    <View className="flex-row items-center justify-between mb-3">
-                        <Text className="text-lg font-bold text-gray-900 dark:text-white">
-                            {t('detail.characters', 'Karakter Analizi')}
-                        </Text>
+                {/* Character Analysis Section (UI Removed, Code Preserved) */}
 
-                    </View>
-
-                    {(() => {
-                        // Check multiple sources for status
-                        const mutationPending = analyzeCharacterMutation.isPending;
-                        const globalStatus = globalBook?.character_analysis_status;
-                        const localStatus = book.character_analysis_status;
-                        const hasLocalMap = book.character_map && book.character_map.length > 0;
-
-                        // Priority: Mutation (Immediate UI) -> Local (DB) -> Global (DB) -> None
-                        let status = mutationPending ? 'pending' :
-                            (localStatus === 'pending' || localStatus === 'processing' ? localStatus :
-                                (globalStatus || 'none'));
-
-                        // Fallback mechanism
-                        if ((!status || status === 'none') && hasLocalMap) {
-                            status = 'completed';
-                        }
-
-                        if (status === 'none' || status === 'failed') {
-                            return (
-                                <View className="items-center py-6">
-                                    <Icon name="account-group-outline" size={48} color="#E0E7FF" />
-                                    <Text className="text-center text-gray-500 dark:text-gray-400 mt-2 mb-4 px-4">
-                                        {t('detail.characterAnalysisDesc', 'Kitabın detaylı karakter haritasını ve ilişkilerini keşfedin.')}
-                                    </Text>
-                                    <TouchableOpacity
-                                        onPress={() => analyzeCharacterMutation.mutate()}
-                                        className={`bg-indigo-600 px-6 py-3 rounded-xl flex-row items-center ${(book.enrichment_status === 'pending' || book.enrichment_status === 'processing') ? 'opacity-50' : ''}`}
-                                        disabled={analyzeCharacterMutation.isPending || (book.enrichment_status === 'pending' || book.enrichment_status === 'processing')}
-                                    >
-                                        <Icon name="account-search-outline" size={20} color="white" className="mr-2" />
-                                        <Text className="text-white font-bold ml-2">
-                                            {status === 'failed' ? t('common.retry', 'Tekrar Dene') : t('detail.analyzeCharacters', 'Karakterleri Analiz Et')}
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
-                            );
-                        } else if (status === 'pending' || status === 'processing') {
-                            return (
-                                <View className="items-center py-8">
-                                    <ActivityIndicator size="large" color="#4F46E5" />
-                                    <Text className="text-indigo-600 dark:text-indigo-400 font-medium mt-4">
-                                        {t('detail.analyzing', 'Karakterler ve ilişkiler inceleniyor...')}
-                                    </Text>
-                                    <Text className="text-gray-400 text-xs mt-1 text-center px-4">
-                                        {t('detail.pleaseWait', 'Lütfen bekleyin, bu işlem birkaç dakika sürebilir.')}
-                                    </Text>
-
-                                    <TouchableOpacity
-                                        onPress={() => analyzeCharacterMutation.mutate()}
-                                        className="mt-4 px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg"
-                                    >
-                                        <Text className="text-xs text-gray-500 dark:text-gray-400">
-                                            {t('detail.stuck', 'Takıldı mı? Tekrar Dene')}
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
-                            );
-                        } else {
-                            // Completed
-                            if (characters && characters.length > 0) {
-                                return (
-                                    <View>
-                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-4 px-4 py-2">
-                                            {characters.map((char: any, index: number) => (
-                                                <TouchableOpacity
-                                                    key={index}
-                                                    onPress={() => {
-                                                        setSelectedCharacterIndex(index);
-                                                        setCharacterModalVisible(true);
-                                                    }}
-                                                >
-                                                    <CharacterCard character={char} />
-                                                </TouchableOpacity>
-                                            ))}
-                                        </ScrollView>
-                                        <TouchableOpacity
-                                            onPress={() => {
-                                                setSelectedCharacterIndex(0);
-                                                setCharacterModalVisible(true);
-                                            }}
-                                            className="mt-3 flex-row items-center justify-center bg-indigo-50 dark:bg-indigo-900/20 py-2 rounded-lg"
-                                        >
-                                            <Icon name="fullscreen" size={18} color="#4F46E5" />
-                                            <Text className="ml-2 text-indigo-600 dark:text-indigo-400 font-medium">
-                                                {t('detail.viewFullScreen', 'Tam Ekran Görüntüle')}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                );
-                            } else {
-                                return (
-                                    <View className="items-center py-4 opacity-60">
-                                        <Text className="text-gray-500 dark:text-gray-400">
-                                            {t('detail.noCharactersFound', 'Bu kitapta belirgin bir karakter bulunamadı.')}
-                                        </Text>
-                                    </View>
-                                );
-                            }
-                        }
-                    })()}
-                </View>
             </ScrollView >
 
             {/* Full Screen Character Modal */}
