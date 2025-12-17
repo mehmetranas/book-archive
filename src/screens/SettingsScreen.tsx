@@ -44,23 +44,26 @@ export const SettingsScreen = () => {
                 </Text>
 
                 {/* Switch App Mode */}
-                <TouchableOpacity
-                    onPress={toggleMode}
-                    className="bg-indigo-100 dark:bg-indigo-900 rounded-lg p-4 mb-6 flex-row items-center border border-indigo-200 dark:border-indigo-800"
-                >
-                    <View className="bg-indigo-200 dark:bg-indigo-800 p-2 rounded-full mr-4">
-                        <Icon name="movie-open" size={24} color="#4338CA" />
-                    </View>
-                    <View className="flex-1">
-                        <Text className="text-lg font-bold text-indigo-900 dark:text-indigo-100">
-                            CineVault'a Geç
-                        </Text>
-                        <Text className="text-indigo-700 dark:text-indigo-300 text-sm">
-                            Film arşivinizi yönetmek için tıklayın
-                        </Text>
-                    </View>
-                    <Icon name="chevron-right" size={24} color="#4338CA" />
-                </TouchableOpacity>
+                {/* Switch App Mode - Role Protected */}
+                {(user?.role === 'admin' || user?.role === 'tester' || user?.role === 'premium') && (
+                    <TouchableOpacity
+                        onPress={toggleMode}
+                        className="bg-indigo-100 dark:bg-indigo-900 rounded-lg p-4 mb-6 flex-row items-center border border-indigo-200 dark:border-indigo-800"
+                    >
+                        <View className="bg-indigo-200 dark:bg-indigo-800 p-2 rounded-full mr-4">
+                            <Icon name="movie-open" size={24} color="#4338CA" />
+                        </View>
+                        <View className="flex-1">
+                            <Text className="text-lg font-bold text-indigo-900 dark:text-indigo-100">
+                                CineVault'a Geç
+                            </Text>
+                            <Text className="text-indigo-700 dark:text-indigo-300 text-sm">
+                                Film arşivinizi yönetmek için tıklayın
+                            </Text>
+                        </View>
+                        <Icon name="chevron-right" size={24} color="#4338CA" />
+                    </TouchableOpacity>
+                )}
 
                 {/* User Info */}
                 {user && (

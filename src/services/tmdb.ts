@@ -180,7 +180,8 @@ export const getTVDetailsProxy = (tmdbId: number) => {
 };
 
 export const addMovieToLibrary = async (movie: Movie | TMDBDetailResponse) => {
-    const isTv = movie.media_type === 'tv';
+    // Robust TV detection: explicit type OR presence of tv-specific fields
+    const isTv = movie.media_type === 'tv' || (!!(movie as any).first_air_date && !(movie as any).release_date);
     let fullDetails: TMDBDetailResponse;
 
     // 1. Fetch Details based on Type
@@ -254,6 +255,7 @@ export const addMovieToLibrary = async (movie: Movie | TMDBDetailResponse) => {
         director: director,
         runtime: runtime,
         type: isTv ? 'tv' : 'movie',
+        media_type: isTv ? 'tv_show' : 'movie',
     };
 
     return await pb.collection('movies').create(data);

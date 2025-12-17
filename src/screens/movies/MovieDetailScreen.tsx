@@ -354,7 +354,9 @@ export const MovieDetailScreen = () => {
     const activeTmdbId = localMovie ? Number(localMovie.tmdb_id) : initialTmdbId;
 
     // 2. Fetch TMDB Details Data using new hook
-    const activeMediaType = localMovie?.type || initialMediaType;
+    // Robust detection: If ANY indicator says 'tv', treat it as 'tv'.
+    const isTv = localMovie?.type === 'tv' || (localMovie as any)?.media_type === 'tv_show' || initialMediaType === 'tv';
+    const activeMediaType = isTv ? 'tv' : 'movie';
     const { data: tmdbMovie, isLoading: isTmdbLoading, error: tmdbError, refetch: refetchTmdb } = useMovieDetails(activeTmdbId || 0, activeMediaType);
 
     const onRefresh = React.useCallback(async () => {

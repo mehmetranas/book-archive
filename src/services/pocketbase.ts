@@ -28,6 +28,7 @@ export type User = {
   username: string;
   name?: string;
   avatar?: string;
+  role?: string;
   created: string;
   updated: string;
 };

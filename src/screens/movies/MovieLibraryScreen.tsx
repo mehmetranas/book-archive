@@ -179,10 +179,14 @@ export const MovieLibraryScreen = () => {
                             </View>
                         ) : null}
 
-                        {/* TV Badge */}
-                        {(item.type === 'tv' || (item as any).media_type === 'tv') && (
+                        {/* Media Type Badge */}
+                        {(item.type === 'tv' || (item as any).media_type === 'tv_show' || (item as any).media_type === 'tv') ? (
                             <View className="bg-blue-600 px-1.5 py-0.5 rounded">
                                 <Text className="text-[9px] font-bold text-white">DİZİ</Text>
+                            </View>
+                        ) : (
+                            <View className="bg-orange-500 px-1.5 py-0.5 rounded">
+                                <Text className="text-[9px] font-bold text-white">FİLM</Text>
                             </View>
                         )}
                     </View>
