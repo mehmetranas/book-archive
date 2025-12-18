@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, ActivityIndicator, TouchableOpacity, Alert, Image, Modal } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { FlashList } from '@shopify/flash-list';
 import { useGoogleBooks, GoogleBookItem } from '../hooks/useGoogleBooks';
 import { pb } from '../services/pocketbase';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +29,15 @@ export const SearchScreen = () => {
             navigation.setParams({ scannedIsbn: undefined });
         }
     }, [route.params?.scannedIsbn]);
+
+    // Reset mutation state (green checkmark) when leaving the screen
+    useFocusEffect(
+        useCallback(() => {
+            return () => {
+                addBookMutation.reset();
+            };
+        }, [])
+    );
 
     const addBookMutation = useMutation({
         mutationFn: async (book: GoogleBookItem) => {

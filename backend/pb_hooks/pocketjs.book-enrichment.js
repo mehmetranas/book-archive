@@ -103,39 +103,71 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
             try {
                 // --- PROMPT ---
                 const promptText = `
-                    ### ROLE
-                    You are an expert Literary Data Analyst and Librarian AI. Your task is to generate structured, high-quality metadata for a given book to populate a "Second Brain" reading application.
+### ROLE
+You are an expert Literary Data Analyst and Librarian AI. Your task is to generate structured, high-quality metadata for a given book to populate a "Second Brain" reading application.
 
-                    ### INPUT DATA
-                    Book Title: "${title}"
-                    Author: "${author}"
+### INPUT DATA
+Book Title: "${title}"
+Author: "${author}"
 
-                    ### OUTPUT FORMAT
-                    You must output a SINGLE valid JSON object. Do not include markdown formatting (json), preambles, or explanations.
+### OUTPUT FORMAT
+You must output a SINGLE valid JSON object. Do not include markdown formatting (like \`\`\`json), preambles, or explanations. Just the raw JSON object.
 
-                    ### JSON SCHEMA & CONTENT RULES
-                    {
-                    "description": "String. A detailed, engaging, and literary summary of the book (3-4 sentences). It should capture the plot and the philosophical depth. LANGUAGE: TURKISH.",
-                    "tags": ["String", "String", ...], // Array of strings. 5-7 conceptual tags (e.g., 'varoluşçuluk', 'baba-oğul', 'distopya'). Lowercase. LANGUAGE: TURKISH.
-                    "page_count": Integer, // Estimated page count.
-                    "spotify_keyword": "String. The BEST search query to find a matching 'ambient' or 'mood' playlist on Spotify. Focus on genre, mood, and instruments (e.g., 'gloomy cello', 'dark academia', 'jazz noir'). LANGUAGE: ENGLISH (Must be English for better API results).",
-                    "primary_color": "String", // HEX color code (e.g., '#2A2A2A') that best represents the book's cover or atmosphere.
-                    "mood": "String" // One word summary of the atmosphere (e.g., 'Melankolik', 'Gergin', 'Epik'). LANGUAGE: TURKISH.
-                    }
+### JSON SCHEMA & CONTENT RULES
+{
+  "description": "String. A detailed, engaging, and literary summary of the book (3-4 sentences). It should capture the plot and the philosophical depth. LANGUAGE: TURKISH.",
+  "tags": ["String", "String", ...], // Array of strings. 5-7 conceptual tags (e.g., 'varoluşçuluk', 'baba-oğul', 'distopya'). Lowercase. LANGUAGE: TURKISH.
+  "page_count": Integer, // Estimated page count.
+  "spotify_keyword": "String. The BEST search query to find a matching 'ambient' or 'mood' playlist on Spotify. Focus on genre, mood, and instruments (e.g., 'gloomy cello', 'dark academia', 'jazz noir'). LANGUAGE: ENGLISH (Must be English for better API results).",
+  "primary_color": "String", // HEX color code (e.g., '#2A2A2A') that best represents the book's cover or atmosphere.
+  "mood": "String", // One word summary of the atmosphere (e.g., 'Melankolik', 'Gergin', 'Epik'). LANGUAGE: TURKISH.
+  "movie_suggestion": {
+      "has_movie": Boolean, // true if a relevant movie exists.
+      "title": "String", // Title of the movie. If adaptation exists, use that. If not, recommend a movie with similar themes. LANGUAGE: ENGLISH (For TMDB search).",
+      "year": "String", // Release year of the movie.
+      "relation_type": "String" // Must be either 'Adaptation' (Directly based on book) or 'Vibe Match' (Similar theme/atmosphere)."
+  }
+}
 
-                    ### CONSTRAINTS
-                    - Ensure the JSON is valid and parsable.
-                    - The 'spotify_keyword' must be in English to ensure high-quality playlist results from the Spotify API.
-                    - The 'description' and 'tags' must be in TURKISH to fit the user's library language.
-                                    `;
+### EXAMPLE OUTPUT (Follow this pattern strictly)
+If the input was "Dune" by "Frank Herbert", the output would be:
+
+{
+  "description": "Çöl gezegeni Arrakis'te geçen, politika, din ve ekolojinin iç içe geçtiği epik bir bilimkurgu şaheseri. Genç Paul Atreides'in, evrenin en değerli kaynağı olan 'baharat' uğruna verilen savaşta liderliğe yükselişini ve kaderiyle yüzleşmesini konu alır.",
+  "tags": [
+    "bilimkurgu",
+    "politika",
+    "ekoloji",
+    "din",
+    "iktidar mücadelesi",
+    "mesih",
+    "uzay operası"
+  ],
+  "page_count": 712,
+  "spotify_keyword": "middle eastern desert ambient sci-fi soundtrack",
+  "primary_color": "#C2B280",
+  "mood": "Epik",
+  "movie_suggestion": {
+      "has_movie": true,
+      "title": "Dune: Part One",
+      "year": "2021",
+      "relation_type": "Adaptation"
+  }
+}
+
+### CONSTRAINTS
+- Ensure the JSON is valid and parsable.
+- The 'spotify_keyword' and 'movie_suggestion.title' must be in English to ensure high-quality API results (Spotify & TMDB).
+- The 'description' and 'tags' must be in TURKISH to fit the user's library language.
+- If multiple adaptations exist, choose the most critically acclaimed or famous one.
+                `;
 
                 // --- Pollinations AI Request ---
                 const pollinationKey = $os.getenv("POLLINATION_KEY") || "";
+                if (!pollinationKey) throw new Error("POLLINATION_KEY not set");
 
-                // Pollinations GET request with prompt in URL
-                // Note: encodeURIComponent is standard JS.
-                const encodedPrompt = encodeURIComponent(promptText);
-                const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=gemini-search`;
+                // Construct full URL with seed (random or specific)
+                const url = `https://text.pollinations.ai/${encodeURIComponent(promptText)}?json=true&model=openai`;
 
                 const res = $http.send({
                     url: url,
@@ -183,7 +215,7 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
                     book.set("tags", aiData.tags);
                 }
 
-                // Yeni Alanlar (Spotify & Mood)
+                // Yeni Alanlar (Spotify & Mood & Movie Suggestion)
                 if (aiData.spotify_keyword) {
                     book.set("spotify_keyword", aiData.spotify_keyword);
                 }
@@ -192,6 +224,9 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
                 }
                 if (aiData.primary_color) {
                     book.set("primary_color", aiData.primary_color);
+                }
+                if (aiData.movie_suggestion) {
+                    book.set("movie_suggestion", aiData.movie_suggestion);
                 }
 
                 book.set("enrichment_status", "completed");

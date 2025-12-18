@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Toast from 'react-native-toast-message';
-import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share, PermissionsAndroid, Modal, FlatList, Dimensions, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share, PermissionsAndroid, Modal, FlatList, Dimensions, TouchableWithoutFeedback, Linking } from 'react-native';
 import ReactNativeBlobUtil from 'react-native-blob-util';
 import ViewShot from 'react-native-view-shot';
 
@@ -15,6 +15,9 @@ import { AIStatusBadge } from '../components/AIStatusBadge';
 import { CharacterCard } from '../components/CharacterCard';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSpotify } from '../hooks/useSpotify';
+import { useSearchMovies } from '../hooks/useTMDB';
+import { addMovieToLibrary } from '../services/tmdb';
 
 interface GlobalBook {
     id: string;
@@ -109,7 +112,7 @@ export const BookDetailScreen = () => {
             try {
                 // Escape quotes in title to prevent filter syntax errors
                 const safeTitle = title.replace(/"/g, '\\"');
-                let filter = `title="${safeTitle}"`;
+                let filter = `title = "${safeTitle}"`;
 
                 if (author) {
                     const safeAuthor = author.replace(/"/g, '\\"');
@@ -287,7 +290,7 @@ export const BookDetailScreen = () => {
         if (!book) return;
         try {
             const authorText = Array.isArray(book.authors) ? book.authors.join(', ') : book.authors;
-            const message = `${book.title} - ${authorText}`;
+            const message = `${book.title} - ${authorText} `;
             await Share.share({
                 message: message,
             });
@@ -578,7 +581,7 @@ export const BookDetailScreen = () => {
                                 <AIStatusBadge status={book.enrichment_status} showLabel={true} />
                             </View>
                         )}
-                        {book.page_count > 0 && (
+                        {(book.page_count || 0) > 0 && (
                             <View className="mt-2 flex-row items-center">
                                 <Icon name="book-open-page-variant" size={16} color="#6B7280" className="mr-1" />
                                 <Text className="text-gray-600 dark:text-gray-400 text-sm">
@@ -629,6 +632,11 @@ export const BookDetailScreen = () => {
                         </View>
                     )}
                 </View>
+
+                {/* Movie Adaptation Suggestion & Smart Features */}
+                <MovieSuggestionSection bookTitle={book.title} />
+                <SpotifySection keyword={book.spotify_keyword} />
+                <SmartNotesSection bookId={bookId} />
 
                 {/* --- AI Content Gallery (Slider) --- */}
                 <View className="mb-6">
@@ -786,23 +794,25 @@ export const BookDetailScreen = () => {
 
                                                                     </View>
 
-                                                                    {/* Author Section - Fixed at Bottom with padding */}
-                                                                    <View className="w-full flex-row items-center justify-center pt-4 pb-2">
-                                                                        <View className="h-[1px] bg-white/40 flex-1 max-w-[40px] mr-3" />
-                                                                        <View className="items-center justify-center max-w-[200px]">
-                                                                            <Text className="text-white/90 text-[10px] font-bold uppercase tracking-[2px] text-center" numberOfLines={1}>
-                                                                                {book.authors?.[0] || 'Unknown'}
-                                                                            </Text>
-                                                                            <Text className="text-white/70 text-[9px] font-medium tracking-wide text-center mt-1" numberOfLines={1}>
-                                                                                {book.title}
-                                                                            </Text>
-                                                                        </View>
-                                                                        <View className="h-[1px] bg-white/40 flex-1 max-w-[40px] ml-3" />
-                                                                    </View>
-
                                                                 </View>
+
+                                                                {/* Author Section - Fixed at Bottom with padding */}
+                                                                <View className="w-full flex-row items-center justify-center pt-4 pb-2">
+                                                                    <View className="h-[1px] bg-white/40 flex-1 max-w-[40px] mr-3" />
+                                                                    <View className="items-center justify-center max-w-[200px]">
+                                                                        <Text className="text-white/90 text-[10px] font-bold uppercase tracking-[2px] text-center" numberOfLines={1}>
+                                                                            {book.authors?.[0] || 'Unknown'}
+                                                                        </Text>
+                                                                        <Text className="text-white/70 text-[9px] font-medium tracking-wide text-center mt-1" numberOfLines={1}>
+                                                                            {book.title}
+                                                                        </Text>
+                                                                    </View>
+                                                                    <View className="h-[1px] bg-white/40 flex-1 max-w-[40px] ml-3" />
+                                                                </View>
+
                                                             </View>
                                                         </View>
+
 
                                                         {/* No extra text view below since it's all overlay now */}
                                                     </ViewShot>
@@ -937,7 +947,7 @@ export const BookDetailScreen = () => {
                             </View>
                         );
                     })()}
-                </View>
+                </View >
 
 
                 {/* Character Analysis Section */}
@@ -1153,5 +1163,255 @@ export const BookDetailScreen = () => {
                 </TouchableOpacity>
             </Modal >
         </View >
+    );
+};
+
+// --- Sub-Components ---
+
+// 1. Movie Suggestion Section
+const MovieSuggestionSection = ({ bookTitle }: { bookTitle: string }) => {
+    const { t } = useTranslation();
+    const navigation = useNavigation<any>();
+    const { data: searchResults, isLoading } = useSearchMovies(bookTitle);
+
+    // Check if the first result is a likely adaptation
+    const movie = searchResults?.results?.[0]; // Simplistic: check top result
+    // TODO: Improve adaptation matching logic (check year, author in overview?)
+
+    // Check if this movie is already in our CineVault
+    const { data: existingMovie } = useQuery({
+        queryKey: ['check_movie', movie?.id],
+        queryFn: async () => {
+            if (!movie) return null;
+            try {
+                return await pb.collection('movies').getFirstListItem(`tmdb_id="${movie.id}"`);
+            } catch {
+                return null;
+            }
+        },
+        enabled: !!movie?.id
+    });
+
+    const addMutation = useMutation({
+        mutationFn: async () => {
+            if (!movie) return;
+            // Ensure media_type logic is robust for TV
+            const movieWithMediaType = { ...movie, media_type: movie.media_type || (movie.first_air_date ? 'tv' : 'movie') };
+            return await addMovieToLibrary(movieWithMediaType as any);
+        },
+        onSuccess: () => {
+            Toast.show({ type: 'success', text1: t('detail.movieAdded', 'Film CineVault\'a eklendi') });
+        },
+        onError: (err: any) => {
+            Toast.show({ type: 'error', text1: t('common.error'), text2: err.message });
+        }
+    });
+
+    if (isLoading || !movie) return null;
+
+    // Filter out if relevance seems low? (Optional)
+
+    const isTv = movie.media_type === 'tv' || !!movie.name;
+    const title = movie.title || movie.name;
+    const releaseDate = movie.release_date || movie.first_air_date;
+    const year = releaseDate ? new Date(releaseDate).getFullYear() : '';
+    const posterUrl = movie.poster_path ? `https://image.tmdb.org/t/p/w200${movie.poster_path}` : null;
+
+    return (
+        <View className="mx-4 mb-4 bg-gray-900 rounded-xl p-4 flex-row items-center border border-gray-700 shadow-sm relative overflow-hidden">
+            {/* Background gradient/image effect could go here */}
+            <View className="absolute inset-0 bg-blue-900/10" />
+
+            {posterUrl ? (
+                <Image source={{ uri: posterUrl }} className="w-16 h-24 rounded-lg mr-4 bg-gray-800" resizeMode="cover" />
+            ) : (
+                <View className="w-16 h-24 rounded-lg mr-4 bg-gray-800 items-center justify-center">
+                    <Icon name="movie" size={24} color="#6B7280" />
+                </View>
+            )}
+
+            <View className="flex-1">
+                <View className="flex-row items-center mb-1">
+                    <Icon name={isTv ? "television-classic" : "movie-open"} size={16} color="#60A5FA" className="mr-1" />
+                    <Text className="text-blue-400 text-xs font-bold uppercase tracking-wider">
+                        {isTv ? 'Dizi Uyarlaması' : 'Film Uyarlaması'}
+                    </Text>
+                </View>
+
+                <Text className="text-white font-bold text-lg leading-6 mb-1">{title}</Text>
+                <Text className="text-gray-400 text-xs mb-3">{year ? `Yıl: ${year}` : ''}</Text>
+
+                {existingMovie ? (
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate("MovieDetail", { movieId: existingMovie.id })}
+                        className="bg-green-600/20 border border-green-600/50 py-1.5 px-3 rounded-lg flex-row items-center self-start"
+                    >
+                        <Icon name="check" size={14} color="#4ADE80" className="mr-1.5" />
+                        <Text className="text-green-400 text-xs font-bold">Kütüphanede (Aç)</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity
+                        onPress={() => addMutation.mutate()}
+                        disabled={addMutation.isPending}
+                        className="bg-blue-600 py-1.5 px-3 rounded-lg flex-row items-center self-start"
+                    >
+                        {addMutation.isPending ? (
+                            <ActivityIndicator size="small" color="white" />
+                        ) : (
+                            <>
+                                <Icon name="plus" size={14} color="white" className="mr-1.5" />
+                                <Text className="text-white text-xs font-bold">CineVault'a Ekle</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                )}
+            </View>
+        </View>
+    );
+};
+
+// 2. Spotify Section
+// 2. Spotify Section
+const SpotifySection = ({ keyword }: { keyword?: string }) => {
+    const { data: spotifyData, isLoading, error, isError } = useSpotify(keyword);
+
+    if (!keyword) return null; // Still hide if no keyword exists at all (AI hasn't run)
+
+    if (isLoading) {
+        return (
+            <View className="mx-4 mb-6 bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-100 dark:border-green-800/50 flex-row items-center justify-center">
+                <ActivityIndicator size="small" color="#1DB954" className="mr-2" />
+                <Text className="text-green-700 dark:text-green-300 text-xs font-medium">Spotify'da aranıyor: {keyword}...</Text>
+            </View>
+        );
+    }
+
+    if (isError) {
+        console.error("Spotify Error:", error);
+        const err = error as any;
+        const errMsg = err?.data?.error || err?.message || "Bağlantı hatası";
+        return (
+            <View className="mx-4 mb-6 bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-100 dark:border-red-800/50">
+                <Text className="text-red-600 dark:text-red-400 text-xs">Spotify bağlantı hatası: {errMsg}</Text>
+            </View>
+        );
+    }
+
+    // Filter out potential null items which can occur in some Spotify responses
+    const validPlaylists = spotifyData?.playlists?.items?.filter(item => item !== null) || [];
+
+    if (validPlaylists.length === 0) {
+        return (
+            <View className="mx-4 mb-6 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700 border-dashed">
+                <Text className="text-gray-500 dark:text-gray-400 text-xs text-center">Spotify'da "{keyword}" için sonuç bulunamadı.</Text>
+            </View>
+        );
+    }
+
+    return (
+        <View className="mx-4 mb-6 bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-100 dark:border-green-800/50">
+            <View className="flex-row items-center mb-3">
+                <Icon name="spotify" size={24} color="#1DB954" className="mr-2" />
+                <Text className="text-gray-900 dark:text-gray-100 font-bold text-base flex-1">
+                    Okuma Müzikleri
+                </Text>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {validPlaylists.map((playlist) => (
+                    <TouchableOpacity
+                        key={playlist.id}
+                        onPress={() => playlist.external_urls?.spotify && Linking.openURL(playlist.external_urls.spotify)}
+                        className="mr-3 w-28"
+                    >
+                        {playlist.images?.[0]?.url ? (
+                            <Image
+                                source={{ uri: playlist.images[0].url }}
+                                className="w-28 h-28 rounded-lg mb-2 bg-gray-200 dark:bg-gray-700"
+                            />
+                        ) : (
+                            <View className="w-28 h-28 rounded-lg mb-2 bg-gray-200 dark:bg-gray-700 items-center justify-center">
+                                <Icon name="music-note" size={32} color="#9CA3AF" />
+                            </View>
+                        )}
+                        <Text className="text-gray-900 dark:text-white font-bold text-xs" numberOfLines={1}>
+                            {playlist.name}
+                        </Text>
+                        <Text className="text-gray-500 dark:text-gray-400 text-[10px]" numberOfLines={1}>
+                            {playlist.owner?.display_name}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
+
+            {spotifyData?.tracks?.items && spotifyData.tracks.items.length > 0 && (
+                <View className="mt-4 pt-3 border-t border-green-200 dark:border-green-800/50">
+                    <Text className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">Önerilen Parçalar</Text>
+                    {spotifyData.tracks?.items?.filter(t => t !== null).slice(0, 3).map((track) => (
+                        <TouchableOpacity
+                            key={track.id}
+                            onPress={() => track.external_urls?.spotify && Linking.openURL(track.external_urls.spotify)}
+                            className="flex-row items-center mb-2"
+                        >
+                            <View className="w-6 h-6 bg-green-200 dark:bg-green-800 rounded-full items-center justify-center mr-2">
+                                <Icon name="play" size={12} color="#15803d" />
+                            </View>
+                            <Text className="text-gray-800 dark:text-gray-200 text-xs flex-1" numberOfLines={1}>
+                                {track.name} <Text className="text-gray-500">- {track.artists?.[0]?.name}</Text>
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+        </View>
+    );
+};
+
+// 3. Smart Notes Section
+const SmartNotesSection = ({ bookId }: { bookId: string }) => {
+    // Fetch smart notes for this book
+    const { data: notes, isLoading } = useQuery({
+        queryKey: ['smart_notes', bookId],
+        queryFn: async () => {
+            return await pb.collection('notes').getFullList({
+                filter: `book="${bookId}"`,
+                sort: '-created'
+            });
+        }
+    });
+
+    if (isLoading || !notes || notes.length === 0) return null;
+
+    return (
+        <View className="mx-4 mb-6">
+            <Text className="text-lg font-bold text-gray-900 dark:text-white mb-3 flex-row items-center">
+                <Icon name="brain" size={20} color="#4F46E5" /> Akıllı Notlar
+            </Text>
+            {notes.map((note) => (
+                <View key={note.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl border-l-4 border-indigo-500 shadow-sm mb-3">
+                    <Text className="text-gray-800 dark:text-gray-200 font-medium mb-2 italic">
+                        "{note.cleaned_text}"
+                    </Text>
+
+                    <View className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg mb-2">
+                        <Text className="text-gray-600 dark:text-gray-400 text-xs leading-5">
+                            <Text className="font-bold text-indigo-600 dark:text-indigo-400">AI Özeti: </Text>
+                            {note.summary}
+                        </Text>
+                    </View>
+
+                    <View className="flex-row flex-wrap gap-2">
+                        {note.tags?.map((tag: string, idx: number) => (
+                            <View key={idx} className="bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded text-xs">
+                                <Text className="text-[10px] text-indigo-600 dark:text-indigo-300">#{tag}</Text>
+                            </View>
+                        ))}
+                        <View className="bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded ml-auto">
+                            <Text className="text-[10px] text-green-600 dark:text-green-400 font-bold">{note.sentiment}</Text>
+                        </View>
+                    </View>
+                </View>
+            ))}
+        </View>
     );
 };

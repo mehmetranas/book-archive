@@ -70,3 +70,22 @@ Anladım. Beyin fırtınası yapalım ve BookVault uygulamanı sadece bir arşiv
 3.  **AI Karakter Analizi:** Senin zaten kurduğun AI altyapısını (Prompt'u değiştirerek) kullanarak yapılabilecek "Wow" dedirtecek bir özellik.
 
 Bunlardan birini teknik plana eklememi ister misin? Yoksa senin aklında başka bir çılgın fikir var mı?
+
+### "Atmosfer Modu" (Ambient Reading Experience)
+Kullanıcı bir kitabı okurken (örneğin "Suç ve Ceza"), uygulamanın arayüzünün ve arka plan sesinin o kitaba uyum sağlaması.
+
+Senaryo: Kullanıcı "Okumaya Başla" butonuna basar.
+
+Arka Plan İşlemi (Backend): PocketBase'den kitap adını ve türünü alırsın. Gemini'ye şu soruyu sorarsın (Kullanıcı müdahalesi yok):
+
+Prompt: "Suç ve Ceza kitabı için bana 2 adet HEX renk kodu (karanlık tema için) ve Spotify/YouTube araması için 3 kelimelik bir 'keyword' (örneğin: 'gloomy rainy petersburg ambience') ver."
+
+Sonuç:
+
+Uygulamanın arkaplanı o kitaba özel kasvetli bir gri/maviye döner.
+
+Arka planda (veya link olarak) o kitaba uygun bir "Rainy Jazz" veya "Medieval Tavern" sesi önerilir.
+
+Neden Güvenli? Girdiyi sen veriyorsun (Kitap Adı). Çıktıyı sen yönetiyorsun (Renk kodu + Müzik).
+
+Teknik: Gemini JSON çıktısı -> React Native Style Props değişikliği.

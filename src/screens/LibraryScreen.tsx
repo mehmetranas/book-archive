@@ -48,6 +48,7 @@ export interface Book {
     tags?: string[];
     expand?: any;
     page_count?: number;
+    spotify_keyword?: string;
 }
 
 export const LibraryScreen = () => {
