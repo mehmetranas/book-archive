@@ -388,13 +388,14 @@ export const SearchScreen = () => {
                                     Nasıl bir kitap arıyorsunuz? (Konu, his, tarz...)
                                 </Text>
                                 <TextInput
-                                    className="border border-gray-300 dark:border-gray-700 rounded-xl p-4 mb-4 text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800 min-h-[100px]"
+                                    className={`border border-gray-300 dark:border-gray-700 rounded-xl p-4 mb-4 text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800 min-h-[100px] ${aiRecommendMutation.isPending ? 'opacity-50' : ''}`}
                                     placeholder="Örn: Sürükleyici bir polisiye ama içinde aşk olmasın..."
                                     placeholderTextColor="#9CA3AF"
                                     value={aiQuery}
                                     onChangeText={setAIQuery}
                                     multiline
                                     textAlignVertical="top"
+                                    editable={!aiRecommendMutation.isPending}
                                 />
 
                                 {aiError && (
@@ -419,14 +420,14 @@ export const SearchScreen = () => {
                                         </>
                                     ) : (
                                         <>
-                                            <Icon name="sparkles" size={20} color="white" className="mr-2" />
+                                            <Icon name="creation" size={20} color="white" className="mr-2" />
                                             <Text className="text-white font-bold">Önerileri Bul</Text>
                                         </>
                                     )}
                                 </TouchableOpacity>
 
                                 <View className="mt-8 items-center opacity-50">
-                                    <Icon name="robot-happy-outline" size={64} color="#9CA3AF" />
+                                    <Icon name="robot" size={64} color="#9CA3AF" />
                                     <Text className="text-gray-400 text-center mt-2 max-w-[250px]">
                                         Yapay zeka, tarifinize en uygun 3 kitabı seçip size sunacaktır.
                                     </Text>
