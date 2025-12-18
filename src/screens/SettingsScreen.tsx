@@ -7,6 +7,8 @@ import { useMode } from '../context/ModeContext';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { pb } from '../services/pocketbase';
+
 export const SettingsScreen = () => {
     const { t, i18n } = useTranslation();
     const { logout, user } = useAuth();
@@ -33,6 +35,44 @@ export const SettingsScreen = () => {
         );
     };
 
+    const handleBuyCredits = async () => {
+        try {
+            if (!user) return;
+
+            Alert.alert(
+                "Test Mağazası",
+                "Bu bir test sürümüdür. Ücretsiz kredi yüklemek ister misiniz?",
+                [
+                    { text: "İptal", style: "cancel" },
+                    {
+                        text: "10 Kredi Yükle (Ücretsiz)",
+                        onPress: async () => {
+                            try {
+                                const res = await pb.send("/api/mock/buy-credits", {
+                                    method: "POST",
+                                    body: { amount: 10 }
+                                });
+
+                                if (res.success) {
+                                    Alert.alert("Başarılı", res.message);
+                                    // Update local user state immediately
+                                    if (pb.authStore.model) {
+                                        const updatedModel = { ...pb.authStore.model, credits: res.credits };
+                                        pb.authStore.save(pb.authStore.token, updatedModel);
+                                    }
+                                }
+                            } catch (err: any) {
+                                Alert.alert("Hata", "Kredi yüklenemedi: " + err.message);
+                            }
+                        }
+                    }
+                ]
+            );
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     return (
         <ScrollView
             className="flex-1 bg-white dark:bg-gray-900"
@@ -44,7 +84,6 @@ export const SettingsScreen = () => {
                 </Text>
 
                 {/* Switch App Mode */}
-                {/* Switch App Mode - Role Protected */}
                 {(user?.role === 'admin' || user?.role === 'tester' || user?.role === 'premium') && (
                     <TouchableOpacity
                         onPress={toggleMode}
@@ -71,13 +110,30 @@ export const SettingsScreen = () => {
                         <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                             {user.name || user.username || 'User'}
                         </Text>
-                        <Text className="text-gray-600 dark:text-gray-400">
+                        <Text className="text-gray-600 dark:text-gray-400 mb-4">
                             {user.email}
                         </Text>
+
+                        {/* Credits Section */}
+                        <View className="border-t border-gray-200 dark:border-gray-700 pt-4 flex-row items-center justify-between">
+                            <View className="flex-row items-center">
+                                <Icon name="bitcoin" size={24} color="#9333EA" className="mr-2" />
+                                <View>
+                                    <Text className="text-gray-900 dark:text-white font-bold text-lg">
+                                        {user.credits ?? 0} Kredi
+                                    </Text>
+                                    <Text className="text-gray-500 text-xs">AI özellikleri için kullanılır</Text>
+                                </View>
+                            </View>
+                            <TouchableOpacity
+                                onPress={handleBuyCredits}
+                                className="bg-purple-100 dark:bg-purple-900 px-4 py-2 rounded-full"
+                            >
+                                <Text className="text-purple-700 dark:text-purple-300 font-bold">Yükle</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 )}
-
-
 
                 {/* Theme */}
                 <View className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">

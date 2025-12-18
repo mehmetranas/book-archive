@@ -273,8 +273,10 @@ const getGraphHtml = (data: any) => `
 `;
 
 const { width } = Dimensions.get('window');
-
 import { useColorScheme } from 'nativewind';
+
+// FEATURE FLAG: Character Analysis disabled for now
+const ENABLE_CHARACTER_ANALYSIS = false;
 
 export const MovieDetailScreen = () => {
     const { colorScheme } = useColorScheme();
@@ -851,7 +853,7 @@ export const MovieDetailScreen = () => {
 
 
                     {/* NEW: Character Analysis / Graph Section */}
-                    {localMovie && (
+                    {ENABLE_CHARACTER_ANALYSIS && localMovie && (
                         <View className="mb-8">
                             <Text className="text-sm font-bold text-gray-900 dark:text-white mb-4 opacity-70">
                                 KARAKTER AĞI (V2)
@@ -962,7 +964,6 @@ export const MovieDetailScreen = () => {
                             )}
                         </View>
                     )}
-
 
                     {/* Videos */}
                     {tmdbMovie?.videos?.results && tmdbMovie.videos.results.length > 0 && (
