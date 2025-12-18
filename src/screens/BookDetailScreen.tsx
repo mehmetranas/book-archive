@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Toast from 'react-native-toast-message';
-import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share, PermissionsAndroid, Modal, FlatList, Dimensions, TouchableWithoutFeedback, Linking } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share, PermissionsAndroid, Modal, FlatList, Dimensions, TouchableWithoutFeedback, Linking, StyleSheet } from 'react-native';
 import ReactNativeBlobUtil from 'react-native-blob-util';
 import ViewShot from 'react-native-view-shot';
 
@@ -476,11 +476,25 @@ export const BookDetailScreen = () => {
 
     const characters = getCharacters();
 
+
+
     return (
         <View
-            className="flex-1 bg-gray-50 dark:bg-gray-900"
-            style={{ paddingTop: insets.top }}
+            className="flex-1"
+            style={{
+                backgroundColor: book.primary_color || (isDark ? '#111827' : '#F9FAFB'),
+                paddingTop: insets.top
+            }}
         >
+            {/* Filter Overlay (Mutes the color immediately without libraries) */}
+            {book.primary_color && (
+                <View
+                    style={{
+                        ...StyleSheet.absoluteFillObject,
+                        backgroundColor: isDark ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.85)'
+                    }}
+                />
+            )}
             {/* Header */}
             <View className="flex-row items-center justify-between p-4 bg-white dark:bg-gray-800 shadow-sm z-10">
                 <TouchableOpacity
@@ -1162,7 +1176,7 @@ export const BookDetailScreen = () => {
                     </View>
                 </TouchableOpacity>
             </Modal >
-        </View >
+        </View>
     );
 };
 
