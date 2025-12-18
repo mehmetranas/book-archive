@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, ActivityIndicator, TouchableOpacity, Alert, Image, Modal } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { FlashList } from '@shopify/flash-list';
+import axios from 'axios';
 import { useGoogleBooks, GoogleBookItem } from '../hooks/useGoogleBooks';
 import { pb } from '../services/pocketbase';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -22,6 +23,13 @@ export const SearchScreen = () => {
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [manualTitle, setManualTitle] = useState('');
     const [manualAuthor, setManualAuthor] = useState('');
+
+    // --- AI Recommendation State ---
+    const [isAIModalVisible, setIsAIModalVisible] = useState(false);
+    const [aiQuery, setAIQuery] = useState('');
+    const [aiResults, setAiResults] = useState<any[] | null>(null);
+    const [aiError, setAiError] = useState<string | null>(null);
+    const [addingAIItemId, setAddingAIItemId] = useState<string | null>(null);
 
     useEffect(() => {
         if (route.params?.scannedIsbn) {
@@ -80,6 +88,43 @@ export const SearchScreen = () => {
             Alert.alert(t('common.error'), `${errorMessage}\n${validationErrors}`);
         },
     });
+
+    const aiRecommendMutation = useMutation({
+        mutationFn: async (userQuery: string) => {
+            const res = await pb.send("/api/ai/recommend-books", {
+                method: "POST",
+                body: { query: userQuery }
+            });
+            return res;
+        },
+        onSuccess: (data: any) => {
+            if (data.error === "OFF_TOPIC") {
+                setAiError(data.message || t('search.aiOffTopic', 'Konu dışı istek.'));
+                setAiResults(null);
+            } else if (data.recommendations) {
+                setAiResults(data.recommendations);
+                setAiError(null);
+            }
+        },
+        onError: (err: any) => {
+            console.log("AI Error:", err);
+            setAiError(t('common.error'));
+        }
+    });
+
+    const handleAISelect = (book: any) => {
+        // Use ISBN if available for better accuracy, else Title + Author
+        // Note: We do NOT clear setAiResults here, so user can open modal again to see same suggestions
+        const searchQuery = book.isbn ? `isbn:${book.isbn}` : `${book.title} ${book.author}`;
+        setQuery(searchQuery);
+        setIsAIModalVisible(false);
+    };
+
+    const handleAIClear = () => {
+        setAIQuery('');
+        setAiResults(null);
+        setAiError(null);
+    };
 
     const addManualBookMutation = useMutation({
         mutationFn: async () => {
@@ -172,12 +217,23 @@ export const SearchScreen = () => {
                     <Text className="text-2xl font-bold text-gray-900 dark:text-white">
                         {t('search.title')}
                     </Text>
-                    <TouchableOpacity
-                        onPress={() => setIsModalVisible(true)}
-                        className="bg-blue-600 p-2 rounded-full"
-                    >
-                        <Icon name="plus" size={24} color="white" />
-                    </TouchableOpacity>
+                    <View className="flex-row gap-2">
+                        {/* AI Button */}
+                        <TouchableOpacity
+                            onPress={() => setIsAIModalVisible(true)}
+                            className="bg-purple-600 p-2 rounded-full"
+                        >
+                            <Icon name="creation" size={24} color="white" />
+                        </TouchableOpacity>
+
+                        {/* Manual Add Button */}
+                        <TouchableOpacity
+                            onPress={() => setIsModalVisible(true)}
+                            className="bg-blue-600 p-2 rounded-full"
+                        >
+                            <Icon name="plus" size={24} color="white" />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 <View className="flex-row items-center bg-gray-100 dark:bg-gray-700 rounded-xl px-4 border border-gray-200 dark:border-gray-600">
@@ -221,7 +277,6 @@ export const SearchScreen = () => {
                 <FlashList<GoogleBookItem>
                     data={books || []}
                     renderItem={renderItem}
-                    estimatedItemSize={120}
                     contentContainerStyle={{ padding: 16 }}
                     ListEmptyComponent={
                         query.length > 0 ? (
@@ -308,7 +363,124 @@ export const SearchScreen = () => {
                     </View>
                 </View>
             </Modal>
+
+            {/* AI Recommendation Modal */}
+            <Modal
+                visible={isAIModalVisible}
+                animationType="slide"
+                presentationStyle="pageSheet"
+                onRequestClose={() => setIsAIModalVisible(false)}
+            >
+                <View className="flex-1 bg-white dark:bg-gray-900">
+                    <View className="p-4 border-b border-gray-200 dark:border-gray-800 flex-row justify-between items-center">
+                        <Text className="text-xl font-bold text-gray-900 dark:text-white flex-row items-center">
+                            <Icon name="creation" size={24} color="#9333EA" /> AI Kütüphaneci
+                        </Text>
+                        <TouchableOpacity onPress={() => setIsAIModalVisible(false)} className="bg-gray-100 dark:bg-gray-800 p-2 rounded-full">
+                            <Icon name="close" size={24} color="#4B5563" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View className="p-4 flex-1">
+                        {!aiResults ? (
+                            <>
+                                <Text className="text-gray-600 dark:text-gray-300 mb-2">
+                                    Nasıl bir kitap arıyorsunuz? (Konu, his, tarz...)
+                                </Text>
+                                <TextInput
+                                    className="border border-gray-300 dark:border-gray-700 rounded-xl p-4 mb-4 text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800 min-h-[100px]"
+                                    placeholder="Örn: Sürükleyici bir polisiye ama içinde aşk olmasın..."
+                                    placeholderTextColor="#9CA3AF"
+                                    value={aiQuery}
+                                    onChangeText={setAIQuery}
+                                    multiline
+                                    textAlignVertical="top"
+                                />
+
+                                {aiError && (
+                                    <View className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg mb-4 flex-row items-center">
+                                        <Icon name="alert-circle" size={20} color="#DC2626" className="mr-2" />
+                                        <Text className="text-red-700 dark:text-red-300 flex-1">{aiError}</Text>
+                                    </View>
+                                )}
+
+                                <TouchableOpacity
+                                    onPress={() => aiRecommendMutation.mutate(aiQuery)}
+                                    disabled={aiRecommendMutation.isPending || aiQuery.length < 5}
+                                    className={`w-full py-4 rounded-xl flex-row items-center justify-center shadow-md ${aiRecommendMutation.isPending || aiQuery.length < 5
+                                        ? 'bg-purple-400'
+                                        : 'bg-purple-600'
+                                        }`}
+                                >
+                                    {aiRecommendMutation.isPending ? (
+                                        <>
+                                            <ActivityIndicator size="small" color="white" className="mr-2" />
+                                            <Text className="text-white font-bold">Düşünülüyor...</Text>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Icon name="sparkles" size={20} color="white" className="mr-2" />
+                                            <Text className="text-white font-bold">Önerileri Bul</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+
+                                <View className="mt-8 items-center opacity-50">
+                                    <Icon name="robot-happy-outline" size={64} color="#9CA3AF" />
+                                    <Text className="text-gray-400 text-center mt-2 max-w-[250px]">
+                                        Yapay zeka, tarifinize en uygun 3 kitabı seçip size sunacaktır.
+                                    </Text>
+                                </View>
+                            </>
+                        ) : (
+                            <View className="flex-1">
+                                <TouchableOpacity
+                                    onPress={handleAIClear}
+                                    className="flex-row items-center mb-4"
+                                >
+                                    <Icon name="arrow-left" size={20} color="#6B7280" />
+                                    <Text className="text-gray-500 ml-1">Yeni Arama</Text>
+                                </TouchableOpacity>
+
+                                <Text className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+                                    Sizin için seçtiklerim:
+                                </Text>
+
+                                <FlashList
+                                    data={aiResults}
+                                    renderItem={({ item }: { item: any }) => (
+                                        <View className="bg-white dark:bg-gray-800 p-4 rounded-xl mb-4 border border-gray-100 dark:border-gray-700 shadow-sm">
+                                            <View className="flex-row justify-between items-start mb-2">
+                                                <View className="flex-1">
+                                                    <Text className="text-lg font-bold text-gray-900 dark:text-white">{item.title}</Text>
+                                                    <Text className="text-gray-600 dark:text-gray-400">{item.author}</Text>
+                                                </View>
+                                                <TouchableOpacity
+                                                    onPress={() => handleAISelect(item)}
+                                                    className="bg-purple-100 dark:bg-purple-900/30 px-3 py-1.5 rounded-lg flex-row items-center"
+                                                >
+                                                    <Icon name="magnify" size={16} color="#9333EA" className="mr-1" />
+                                                    <Text className="text-purple-700 dark:text-purple-300 font-bold text-xs">Ara</Text>
+                                                </TouchableOpacity>
+                                            </View>
+
+                                            <View className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg mb-2">
+                                                <Text className="text-purple-800 dark:text-purple-300 text-xs italic">
+                                                    "{item.reason}"
+                                                </Text>
+                                            </View>
+
+                                            <Text className="text-gray-600 dark:text-gray-400 text-sm leading-5">
+                                                {item.summary}
+                                            </Text>
+                                        </View>
+                                    )}
+                                />
+                            </View>
+                        )}
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
-
