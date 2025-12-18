@@ -1266,7 +1266,11 @@ const MovieSuggestionSection = ({ bookTitle, suggestion }: { bookTitle: string; 
     const posterUrl = movie.poster_path ? `https://image.tmdb.org/t/p/w200${movie.poster_path}` : null;
 
     return (
-        <View className="mx-4 mb-4 bg-gray-900 rounded-xl p-4 flex-row items-center border border-gray-700 shadow-sm relative overflow-hidden">
+        <TouchableOpacity
+            onPress={() => navigation.navigate("MovieDetail", { tmdbId: movie.id, mediaType: movie.mediaType })}
+            activeOpacity={0.7}
+            className="mx-4 mb-4 bg-gray-900 rounded-xl p-4 flex-row items-center border border-gray-700 shadow-sm relative overflow-hidden"
+        >
             {/* Background gradient/image effect could go here */}
             <View className="absolute inset-0 bg-blue-900/10" />
 
@@ -1316,7 +1320,7 @@ const MovieSuggestionSection = ({ bookTitle, suggestion }: { bookTitle: string; 
                     </TouchableOpacity>
                 )}
             </View>
-        </View>
+        </TouchableOpacity>
     );
 };
 
