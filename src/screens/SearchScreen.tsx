@@ -10,6 +10,7 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '../context/AuthContext';
 
 export const SearchScreen = () => {
     const { t, i18n } = useTranslation();
@@ -30,6 +31,9 @@ export const SearchScreen = () => {
     const [aiResults, setAiResults] = useState<any[] | null>(null);
     const [aiError, setAiError] = useState<string | null>(null);
     const [addingAIItemId, setAddingAIItemId] = useState<string | null>(null);
+
+    // Get user from AuthContext
+    const { user } = useAuth();
 
     useEffect(() => {
         if (route.params?.scannedIsbn) {
@@ -91,8 +95,18 @@ export const SearchScreen = () => {
 
     const aiRecommendMutation = useMutation({
         mutationFn: async (userQuery: string) => {
+            // Check token
+            if (!pb.authStore.isValid) {
+                console.log("AuthStore invalid!", pb.authStore.token);
+                throw new Error("User not authenticated properly");
+            }
+
+            // Explicitly set Content-Type, leave Authorization to SDK (which adds Bearer)
             const res = await pb.send("/api/ai/recommend-books", {
                 method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
                 body: { query: userQuery }
             });
             return res;
@@ -104,11 +118,21 @@ export const SearchScreen = () => {
             } else if (data.recommendations) {
                 setAiResults(data.recommendations);
                 setAiError(null);
+
+                // Update local user credits
+                if (data.remainingCredits !== undefined && pb.authStore.model) {
+                    const updatedModel = { ...pb.authStore.model, credits: data.remainingCredits };
+                    pb.authStore.save(pb.authStore.token, updatedModel);
+                }
             }
         },
         onError: (err: any) => {
             console.log("AI Error:", err);
-            setAiError(t('common.error'));
+            if (err?.status === 402 || err?.data?.error === "INSUFFICIENT_CREDITS") {
+                setAiError("Yetersiz bakiye. Lütfen kredi yükleyin.");
+            } else {
+                setAiError(t('common.error'));
+            }
         }
     });
 
@@ -124,6 +148,46 @@ export const SearchScreen = () => {
         setAIQuery('');
         setAiResults(null);
         setAiError(null);
+    };
+
+    // --- Mock Purchase Function for now ---
+    const handleBuyCredits = async () => {
+        try {
+            if (!user) return;
+
+            Alert.alert(
+                "Test Mağazası",
+                "Bu bir test sürümüdür. Ücretsiz kredi yüklemek ister misiniz?",
+                [
+                    { text: "İptal", style: "cancel" },
+                    {
+                        text: "10 Kredi Yükle (Ücretsiz)",
+                        onPress: async () => {
+                            try {
+                                const res = await pb.send("/api/mock/buy-credits", {
+                                    method: "POST",
+                                    body: { amount: 10 }
+                                });
+
+                                if (res.success) {
+                                    Alert.alert("Başarılı", res.message);
+                                    // Update local user state immediately
+                                    if (pb.authStore.model) {
+                                        const updatedModel = { ...pb.authStore.model, credits: res.credits };
+                                        pb.authStore.save(pb.authStore.token, updatedModel);
+                                        // Force UI update if needed (AuthContext usually listens to onChange)
+                                    }
+                                }
+                            } catch (err: any) {
+                                Alert.alert("Hata", "Kredi yüklenemedi: " + err.message);
+                            }
+                        }
+                    }
+                ]
+            );
+        } catch (e) {
+            console.error(e);
+        }
     };
 
     const addManualBookMutation = useMutation({
@@ -382,6 +446,19 @@ export const SearchScreen = () => {
                     </View>
 
                     <View className="p-4 flex-1">
+                        {/* Credits Banner */}
+                        <View className="flex-row items-center justify-between bg-purple-50 dark:bg-purple-900/20 p-3 rounded-xl mb-4">
+                            <View className="flex-row items-center">
+                                <Icon name="bitcoin" size={20} color="#9333EA" className="mr-2" />
+                                <Text className="text-purple-900 dark:text-purple-100 font-bold">
+                                    Krediniz: {user?.credits ?? 0}
+                                </Text>
+                            </View>
+                            <TouchableOpacity onPress={handleBuyCredits} className="bg-purple-600 px-3 py-1.5 rounded-lg">
+                                <Text className="text-white text-xs font-bold">Kredi Al</Text>
+                            </TouchableOpacity>
+                        </View>
+
                         {!aiResults ? (
                             <>
                                 <Text className="text-gray-600 dark:text-gray-300 mb-2">
@@ -402,15 +479,22 @@ export const SearchScreen = () => {
                                     <View className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg mb-4 flex-row items-center">
                                         <Icon name="alert-circle" size={20} color="#DC2626" className="mr-2" />
                                         <Text className="text-red-700 dark:text-red-300 flex-1">{aiError}</Text>
+                                        {aiError.includes("bakiye") && (
+                                            <TouchableOpacity onPress={handleBuyCredits} className="bg-red-100 dark:bg-red-800 ml-2 px-2 py-1 rounded">
+                                                <Text className="text-red-800 dark:text-white text-xs font-bold">Al</Text>
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
                                 )}
 
                                 <TouchableOpacity
                                     onPress={() => aiRecommendMutation.mutate(aiQuery)}
-                                    disabled={aiRecommendMutation.isPending || aiQuery.length < 5}
-                                    className={`w-full py-4 rounded-xl flex-row items-center justify-center shadow-md ${aiRecommendMutation.isPending || aiQuery.length < 5
-                                        ? 'bg-purple-400'
-                                        : 'bg-purple-600'
+                                    disabled={aiRecommendMutation.isPending || aiQuery.length < 5 || (user?.credits ?? 0) < 1}
+                                    className={`w-full py-4 rounded-xl flex-row items-center justify-center shadow-md ${(user?.credits ?? 0) < 1
+                                        ? 'bg-gray-400 opacity-50'
+                                        : aiRecommendMutation.isPending || aiQuery.length < 5
+                                            ? 'bg-purple-400'
+                                            : 'bg-purple-600'
                                         }`}
                                 >
                                     {aiRecommendMutation.isPending ? (
@@ -418,10 +502,15 @@ export const SearchScreen = () => {
                                             <ActivityIndicator size="small" color="white" className="mr-2" />
                                             <Text className="text-white font-bold">Düşünülüyor...</Text>
                                         </>
+                                    ) : (user?.credits ?? 0) < 1 ? (
+                                        <>
+                                            <Icon name="lock" size={20} color="white" className="mr-2" />
+                                            <Text className="text-white font-bold">Yetersiz Kredi</Text>
+                                        </>
                                     ) : (
                                         <>
                                             <Icon name="creation" size={20} color="white" className="mr-2" />
-                                            <Text className="text-white font-bold">Önerileri Bul</Text>
+                                            <Text className="text-white font-bold">Önerileri Bul (1 Kredi)</Text>
                                         </>
                                     )}
                                 </TouchableOpacity>

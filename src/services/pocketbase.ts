@@ -31,6 +31,7 @@ export type User = {
   role?: string;
   created: string;
   updated: string;
+  credits: number;
 };
 
 export default pb;

@@ -1,9 +1,22 @@
 /// <reference path="../pb_data/types.d.ts" />
 
 routerAdd("POST", "/api/ai/recommend-books", (c) => {
-    const info = c.requestInfo();
-    const data = info.body;
-    const userQuery = data.query;
+    // -------------------------------------------------------------------------
+    // 1. DATA EXTRACTION & VALIDATION
+    // -------------------------------------------------------------------------
+    let userQuery = "";
+    let authData = null; // Can be a Record model or a plain info object
+
+    try {
+        const info = c.requestInfo();
+        const data = info.body || {};
+        userQuery = data.query;
+
+        // Use requestInfo().auth as it's the proven reliable source in this setup
+        authData = info.auth;
+    } catch (e) {
+        return c.json(400, { error: "Invalid request body or server error" });
+    }
 
     if (!userQuery || userQuery.length < 5) {
         return c.json(400, { error: "Query too short" });
@@ -14,6 +27,37 @@ routerAdd("POST", "/api/ai/recommend-books", (c) => {
         return c.json(500, { error: "Server misconfiguration: POLLINATION_KEY missing" });
     }
 
+    if (!authData) {
+        return c.json(401, { error: "Authentication required" });
+    }
+
+    // -------------------------------------------------------------------------
+    // 2. USER RECORD & CREDIT CHECK
+    // -------------------------------------------------------------------------
+    let userRecord;
+    try {
+        // We always fetch the fresh record from DB to ensure transactional safety for credits
+        // authData.id is available since info.auth contains the user schema
+        const userId = authData.id || authData.getId();
+
+        // FIX: Use $app direct methods as observed in other working hooks, 
+        // avoiding 'Object has no member dao' error.
+        userRecord = $app.findRecordById("users", userId);
+
+        if (userRecord.getInt("credits") < 1) {
+            return c.json(402, {
+                error: "INSUFFICIENT_CREDITS",
+                message: "Yetersiz bakiye. Devam etmek için kredi yükleyin."
+            });
+        }
+    } catch (err) {
+        // If user not found in DB or DAO error
+        return c.json(500, { error: "User validation failed: " + err.message });
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. AI PROMPT PREPARATION
+    // -------------------------------------------------------------------------
     const prompt = `
         ### ROLE
         You are a Literary Concierge and Expert Librarian AI. Your goal is to recommend books based on a user's free-text request.
@@ -49,112 +93,86 @@ routerAdd("POST", "/api/ai/recommend-books", (c) => {
         ### FINAL VERIFICATION & SANITY CHECK (CRITICAL)
         Before outputting the final JSON, perform this internal "Self-Correction" loop:
         1. **Analyze Intent:** Did the user specifically ask for a *book*, *reading material*, *novel*, or *literature*?
-        - If the user asked for a "movie", "song", or "code snippet", this is OFF_TOPIC.
+          - If the user asked for a "movie", "song", or "code snippet", this is OFF_TOPIC.
         2. **Verify Output:** Are the items you selected actually published books? Ensure they are not movies or video games with the same name.
         3. **Decision Gate:**
-        - IF the input is even slightly irrelevant to reading/books -> Force the "OFF_TOPIC" JSON.
-        - ONLY IF the input is confirmed to be a book request -> Output the "recommendations" JSON.
-
-        ### EXAMPLES
-
-        **Input:** "Bana zaman yolculuğu içeren ama romantik bir kitap öner."
-        **Output:**
-        {
-        "recommendations": [
-            {
-            "title": "Zaman Yolcusunun Karısı",
-            "author": "Audrey Niffenegger",
-            "isbn": "9789759915678",
-            "reason": "Zaman yolculuğu ve aşk temasını en iyi harmanlayan modern klasiklerden biridir. İstediğiniz hem bilimkurgu hem romantizm dengesini kurar.",
-            "summary": "Henry, genetik bir bozukluk nedeniyle kontrolsüzce zamanda yolculuk yapar. Clare ise onun geçmişini ve geleceğini bilen eşidir. Sıradışı bir aşk hikayesi."
-            },
-            {
-            "title": "11/22/63",
-            "author": "Stephen King",
-            "isbn": "9789752115044",
-            "reason": "Zaman yolculuğu ile tarihi değiştirmeye çalışan bir adamın hikayesi, ancak içinde çok güçlü bir aşk hikayesi de barındırır.",
-            "summary": "Bir öğretmen, JFK suikastını önlemek için geçmişe gider, ancak geçmiş değişmek istemez. Bu sırada geçmişte bulduğu aşk, görevini zorlaştırır."
-            },
-            {
-            "title": "Yabancı",
-            "author": "Diana Gabaldon",
-            "isbn": "9789751016908",
-            "reason": "Tarihi zaman yolculuğu ve tutkulu bir aşk hikayesi arayanlar için mükemmel bir seridir.",
-            "summary": "1945 yılında yaşayan bir hemşire, gizemli bir taş çemberinden geçerek 1743 İskoçya'sına düşer ve orada bir savaşçıya aşık olur."
-            }
-        ]
-        }
-
-        **Input:** "Python ile nasıl backend yazarım?"
-        **Output:**
-        {
-        "error": "OFF_TOPIC",
-        "message": "Üzgünüm, ben bir kütüphaneciyim. Sadece kitap önerilerinde yardımcı olabilirim."
-        }
-
-        **Input:** "Batman izlemek istiyorum."
-        **Output:** (Internal check: User asked to 'watch', not 'read'. This is OFF_TOPIC.)
-        {
-        "error": "OFF_TOPIC",
-        "message": "Üzgünüm, ben bir kütüphaneciyim. Sadece kitap önerilerinde yardımcı olabilirim."
-        }
+          - IF the input is even slightly irrelevant to reading/books -> Force the "OFF_TOPIC" JSON.
+          - ONLY IF the input is confirmed to be a book request -> Output the "recommendations" JSON. 
     `;
 
+    // -------------------------------------------------------------------------
+    // 4. AI API CALL
+    // -------------------------------------------------------------------------
+    const fetchWithModel = (model) => {
+        const encodedPrompt = encodeURIComponent(prompt.trim());
+        const seed = Math.floor(Math.random() * 1000000);
+        // Using json=true for better stability with compatible models
+        const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=${model}&seed=${seed}&json=true`;
+
+        return $http.send({
+            url: url,
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${pollinationKey}`,
+                "Content-Type": "application/json"
+            },
+            timeout: 60 // 1 minute timeout
+        });
+    };
+
+    let res;
+    let jsonResponse;
+
     try {
-        const fetchWithModel = (model) => {
-            const encodedPrompt = encodeURIComponent(prompt.trim());
-            const seed = Math.floor(Math.random() * 1000000);
-            // Using json=true for better stability with compatible models
-            const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=${model}&seed=${seed}&json=true`;
-
-            return $http.send({
-                url: url,
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${pollinationKey}`,
-                    "Content-Type": "application/json"
-                },
-                timeout: 60 // 1 minute timeout
-            });
-        };
-
-        let res;
-        // Primary attempt: gemini-search
+        // Attempt 1: Gemini
         try {
             res = fetchWithModel("gemini-search");
-            if (res.statusCode !== 200) {
-                throw new Error(`Gemini-search failed with status ${res.statusCode}: ${res.raw}`);
-            }
+            if (res.statusCode !== 200) throw new Error("Status " + res.statusCode);
         } catch (primaryError) {
-            console.log("Primary model (gemini-search) failed, attempting fallback to openai-fast. Error:", primaryError.message);
-
-            // Fallback attempt: openai-fast (which effectively maps to GPT-4o-mini or similar)
-            try {
-                res = fetchWithModel("openai-fast");
-                if (res.statusCode !== 200) {
-                    throw new Error(`Fallback model (openai-fast) failed with status ${res.statusCode}: ${res.raw}`);
-                }
-            } catch (fallbackError) {
-                console.log("Fallback model also failed. Error:", fallbackError.message);
-                throw new Error("AI Provider Error (Both Primary and Fallback failed). Last error: " + fallbackError.message);
+            console.log("[Recommend] Gemini failed, trying fallback:", primaryError.message);
+            // Attempt 2: OpenAI Fast
+            res = fetchWithModel("openai-fast");
+            if (res.statusCode !== 200) {
+                throw new Error("AI Provider Error: " + res.raw);
             }
         }
 
-        let rawText = res.raw;
-        // Clean markdown
-        rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+        // Parsing
+        let rawText = res.raw.trim();
+        // Remove markdown code blocks if present
+        rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
 
-        // Extract JSON
         const firstBrace = rawText.indexOf('{');
         const lastBrace = rawText.lastIndexOf('}');
         if (firstBrace !== -1 && lastBrace !== -1) {
             rawText = rawText.substring(firstBrace, lastBrace + 1);
         }
 
-        const jsonResponse = JSON.parse(rawText);
-        return c.json(200, jsonResponse);
+        jsonResponse = JSON.parse(rawText);
 
     } catch (err) {
-        return c.json(500, { error: err.message });
+        return c.json(502, { error: "AI Processing Failed: " + err.message });
     }
+
+    // -------------------------------------------------------------------------
+    // 5. CREDIT DEDUCTION (ON SUCCESS)
+    // -------------------------------------------------------------------------
+    // Only deduct if we got valid recommendations (not off-topic error)
+    if (jsonResponse.recommendations && Array.isArray(jsonResponse.recommendations)) {
+        try {
+            const currentCredits = userRecord.getInt("credits");
+            const newCredits = currentCredits - 1;
+
+            userRecord.set("credits", newCredits);
+            $app.save(userRecord); // FIX: Direct save on $app
+
+            // Allow frontend to update UI immediately
+            jsonResponse.remainingCredits = newCredits;
+        } catch (dbErr) {
+            console.log("[Recommend] Credit deduction failed:", dbErr);
+            // We don't fail the request here, user gets the result but maybe free of charge due to error
+        }
+    }
+
+    return c.json(200, jsonResponse);
 });
