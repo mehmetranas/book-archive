@@ -123,26 +123,22 @@ You must output a SINGLE valid JSON object. Do not include markdown formatting (
   "mood": "String", // One word summary of the atmosphere (e.g., 'Melankolik', 'Gergin', 'Epik'). LANGUAGE: TURKISH.
   "movie_suggestion": {
       "has_movie": Boolean, // true if a relevant movie exists.
-      "title": "String", // Title of the movie. If adaptation exists, use that. If not, recommend a movie with similar themes. LANGUAGE: ENGLISH (For TMDB search).",
+      "title": "String", // Title of the movie. LANGUAGE: ENGLISH.
       "year": "String", // Release year of the movie.
-      "relation_type": "String" // Must be either 'Adaptation' (Directly based on book) or 'Vibe Match' (Similar theme/atmosphere)."
+      "relation_type": "String" // CRITICAL: Must be 'Adaptation' ONLY if the movie is officially based on this specific book (verify author credit). If a movie shares the same title but has a different plot (e.g., 'The Lemon Tree' book vs 'Lemon Tree' movie), OR if no direct adaptation exists, choose a movie with similar themes and set this to 'Vibe Match'."
   }
 }
 
-### EXAMPLE OUTPUT (Follow this pattern strictly)
-If the input was "Dune" by "Frank Herbert", the output would be:
+### CONSTRAINTS
+- Ensure the JSON is valid and parsable.
+- The 'spotify_keyword' and 'movie_suggestion.title' must be in English.
+- The 'description' and 'tags' must be in TURKISH.
+- **ANTI-HALLUCINATION RULE:** Do not assume a movie is an adaptation just because it shares the book's title. Verify the plot and credits. If the book is non-fiction and the movie is fiction (or vice versa) with different stories, it is NOT an adaptation. Use 'Vibe Match' instead.
 
+### EXAMPLE OUTPUT
 {
   "description": "Çöl gezegeni Arrakis'te geçen, politika, din ve ekolojinin iç içe geçtiği epik bir bilimkurgu şaheseri. Genç Paul Atreides'in, evrenin en değerli kaynağı olan 'baharat' uğruna verilen savaşta liderliğe yükselişini ve kaderiyle yüzleşmesini konu alır.",
-  "tags": [
-    "bilimkurgu",
-    "politika",
-    "ekoloji",
-    "din",
-    "iktidar mücadelesi",
-    "mesih",
-    "uzay operası"
-  ],
+  "tags": ["bilimkurgu", "politika", "ekoloji", "din", "iktidar mücadelesi", "mesih", "uzay operası"],
   "page_count": 712,
   "spotify_keyword": "middle eastern desert ambient sci-fi soundtrack",
   "primary_color": "#C2B280",
@@ -154,12 +150,6 @@ If the input was "Dune" by "Frank Herbert", the output would be:
       "relation_type": "Adaptation"
   }
 }
-
-### CONSTRAINTS
-- Ensure the JSON is valid and parsable.
-- The 'spotify_keyword' and 'movie_suggestion.title' must be in English to ensure high-quality API results (Spotify & TMDB).
-- The 'description' and 'tags' must be in TURKISH to fit the user's library language.
-- If multiple adaptations exist, choose the most critically acclaimed or famous one.
                 `;
 
                 // --- Pollinations AI Request ---

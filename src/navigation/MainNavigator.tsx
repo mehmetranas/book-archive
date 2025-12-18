@@ -5,10 +5,12 @@ import { BookDetailScreen } from '../screens/BookDetailScreen';
 
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { BarcodeScannerScreen } from '../screens/BarcodeScannerScreen';
+import { MovieDetailScreen } from '../screens/movies/MovieDetailScreen';
 
 export type MainStackParamList = {
     MainTabs: undefined;
     BookDetail: { bookId: string };
+    MovieDetail: { movieId?: string; tmdbId?: number; mediaType?: 'movie' | 'tv' };
     BarcodeScanner: undefined;
     Profile: undefined;
 };
@@ -20,6 +22,7 @@ export const MainNavigator = () => {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="MainTabs" component={BottomTabNavigator} />
             <Stack.Screen name="BookDetail" component={BookDetailScreen} />
+            <Stack.Screen name="MovieDetail" component={MovieDetailScreen} />
             <Stack.Screen
                 name="BarcodeScanner"
                 component={BarcodeScannerScreen}

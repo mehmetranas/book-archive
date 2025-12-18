@@ -50,6 +50,12 @@ export interface Book {
     page_count?: number;
     spotify_keyword?: string;
     primary_color?: string;
+    movie_suggestion?: {
+        has_movie: boolean;
+        title: string;
+        year?: string;
+        relation_type?: string;
+    };
 }
 
 export const LibraryScreen = () => {

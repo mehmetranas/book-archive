@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share, PermissionsAndroid, Modal, FlatList, Dimensions, TouchableWithoutFeedback, Linking, StyleSheet } from 'react-native';
 import ReactNativeBlobUtil from 'react-native-blob-util';
 import ViewShot from 'react-native-view-shot';
 
-import { useRoute, useNavigation } from '@react-navigation/native';
+
 import { useColorScheme } from 'nativewind';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -648,7 +649,7 @@ export const BookDetailScreen = () => {
                 </View>
 
                 {/* Movie Adaptation Suggestion & Smart Features */}
-                <MovieSuggestionSection bookTitle={book.title} />
+                <MovieSuggestionSection bookTitle={book.title} suggestion={book.movie_suggestion} />
                 <SpotifySection keyword={book.spotify_keyword} />
                 <SmartNotesSection bookId={bookId} />
 
@@ -1183,13 +1184,41 @@ export const BookDetailScreen = () => {
 // --- Sub-Components ---
 
 // 1. Movie Suggestion Section
-const MovieSuggestionSection = ({ bookTitle }: { bookTitle: string }) => {
+const MovieSuggestionSection = ({ bookTitle, suggestion }: { bookTitle: string; suggestion?: Book['movie_suggestion'] }) => {
     const { t } = useTranslation();
     const navigation = useNavigation<any>();
-    const { data: searchResults, isLoading } = useSearchMovies(bookTitle);
 
-    // Check if the first result is a likely adaptation
-    const movie = searchResults?.results?.[0]; // Simplistic: check top result
+    // Use AI suggestion query if available, otherwise fallback to book title
+    const searchQuery = (suggestion?.has_movie && suggestion?.title) ? suggestion.title : bookTitle;
+    const { data: searchResults, isLoading } = useSearchMovies(searchQuery);
+
+    const queryClient = useQueryClient();
+
+    // Invalidate check_movie query when focused to ensure button state is up to date
+    useFocusEffect(
+        React.useCallback(() => {
+            queryClient.invalidateQueries({ queryKey: ['check_movie'] });
+        }, [])
+    );
+
+    // Initial filtering based on suggestion
+    const movie = React.useMemo(() => {
+        if (!searchResults?.results?.length) return null;
+
+        // If we have a specific suggestion with year, try to find exact match
+        if (suggestion?.year && suggestion.title) {
+            const targetYear = parseInt(suggestion.year);
+            const exactMatch = searchResults.results.find(m => {
+                const releaseDate = m.release_date || (m as any).first_air_date;
+                const mYear = releaseDate ? new Date(releaseDate).getFullYear() : 0;
+                return Math.abs(mYear - targetYear) <= 1; // Allow 1 year diff
+            });
+            if (exactMatch) return exactMatch;
+        }
+
+        // Default: return first result
+        return searchResults.results[0];
+    }, [searchResults, suggestion]);
     // TODO: Improve adaptation matching logic (check year, author in overview?)
 
     // Check if this movie is already in our CineVault
@@ -1214,12 +1243,17 @@ const MovieSuggestionSection = ({ bookTitle }: { bookTitle: string }) => {
             return await addMovieToLibrary(movieWithMediaType as any);
         },
         onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['check_movie'] });
             Toast.show({ type: 'success', text1: t('detail.movieAdded', 'Film CineVault\'a eklendi') });
         },
         onError: (err: any) => {
             Toast.show({ type: 'error', text1: t('common.error'), text2: err.message });
         }
     });
+
+    // If user explicitly sent a suggestion object saying 'has_movie: false', we hide this section.
+    // If suggestion is undefined (old data), we fall back to searching by title.
+    if (suggestion && suggestion.has_movie === false) return null;
 
     if (isLoading || !movie) return null;
 
@@ -1246,9 +1280,11 @@ const MovieSuggestionSection = ({ bookTitle }: { bookTitle: string }) => {
 
             <View className="flex-1">
                 <View className="flex-row items-center mb-1">
-                    <Icon name={isTv ? "television-classic" : "movie-open"} size={16} color="#60A5FA" className="mr-1" />
-                    <Text className="text-blue-400 text-xs font-bold uppercase tracking-wider">
-                        {isTv ? 'Dizi Uyarlaması' : 'Film Uyarlaması'}
+                    <Icon name={isTv ? "television-classic" : "movie-open"} size={16} color={suggestion?.relation_type === 'Vibe Match' ? "#A78BFA" : "#60A5FA"} className="mr-1" />
+                    <Text className={`${suggestion?.relation_type === 'Vibe Match' ? 'text-purple-400' : 'text-blue-400'} text-xs font-bold uppercase tracking-wider`}>
+                        {suggestion?.relation_type === 'Vibe Match'
+                            ? (isTv ? 'Benzer Dizi (Vibe)' : 'Benzer Film (Vibe)')
+                            : (isTv ? 'Dizi Uyarlaması' : 'Film Uyarlaması')}
                     </Text>
                 </View>
 
