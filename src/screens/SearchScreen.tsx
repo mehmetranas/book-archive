@@ -35,6 +35,23 @@ export const SearchScreen = () => {
     // Get user from AuthContext
     const { user } = useAuth();
 
+    // Refresh user data (credits) when screen comes into focus
+    useFocusEffect(
+        useCallback(() => {
+            if (user?.id) {
+                pb.collection('users').getOne(user.id)
+                    .then((updatedRecord) => {
+                        // Update the auth store with fresh data. 
+                        // This will trigger the onChange listener in AuthContext and update 'user' state everywhere.
+                        if (pb.authStore.isValid && pb.authStore.token) {
+                            pb.authStore.save(pb.authStore.token, updatedRecord);
+                        }
+                    })
+                    .catch((err) => console.log("Failed to refresh user credits:", err));
+            }
+        }, [user?.id])
+    );
+
     useEffect(() => {
         if (route.params?.scannedIsbn) {
             setQuery(`isbn:${route.params.scannedIsbn}`);

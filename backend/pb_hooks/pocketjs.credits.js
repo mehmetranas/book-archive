@@ -17,35 +17,7 @@ onRecordAfterCreateSuccess((e) => {
     e.next();
 }, "users");
 
-
-// 2. GÜVENLİK: Kullanıcının Kendi Kredisini Değiştirmesini Engelle
-// Kullanıcı profilini güncellerken (örneğin ismini), araya sızıp "credits: 1000" gönderirse bunu engellemeliyiz.
-onRecordBeforeUpdateRequest((e) => {
-    const record = e.record;       // Veritabanındaki mevcut kayıt
-    const oldCredits = record.getInt("credits");
-
-    // İstekten gelen veriyi kontrol etmek için requestInfo'yu kullanabiliriz veya
-    // PocketBase hook'larında record.load(data) otomatik yapılmış olabilir.
-    // Ancak e.record MEVCUT hali değil, GÜNCELLENMİŞ halidir (memory'de).
-    // O yüzden original kopyasını alıp karşılaştırmak daha güvenilirdir ama
-    // 'onRecordBeforeUpdate' hook'unda e.record zaten form verisiyle doldurulmuştur.
-
-    // Gelen isteği yapan kişinin yetkisini kontrol edelim
-    const info = e.requestInfo(); // İstek bilgisini al
-    const authRecord = info.auth; // Kim giriş yapmış?
-
-    // Eğer admin değilse (normal kullanıcı ise) kredisini değiştiremez!
-    if (authRecord && !authRecord.isSuperuser()) {
-        // Veritabanındaki orijinal kaydı çekelim
-        const originalRecord = $app.findRecordById("users", record.id);
-        const originalCredits = originalRecord.getInt("credits");
-        const newCredits = record.getInt("credits");
-
-        if (originalCredits !== newCredits) {
-            // HATA FIRLAT: Kullanıcı kredisini elle değiştirmeye çalışıyor!
-            throw new BadRequestError("Kredi bakiyenizi manuel olarak değiştiremezsiniz.");
-        }
-    }
-
-    e.next();
-}, "users");
+// NOT: Güvenlik kontrolleri (Manuel kredi değişimini engelleme) artık PocketBase API Kuralları (API Rules) 
+// üzerinden yönetileceği için koddan kaldırılmıştır.
+// Admin Panel > Collections > users > API Rules > Update kısmına:
+// id = @request.auth.id && @request.data.credits:isset = false
