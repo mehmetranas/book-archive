@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useMode } from '../context/ModeContext';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -14,6 +15,23 @@ export const SettingsScreen = () => {
     const { logout, user } = useAuth();
     const { toggleMode } = useMode();
     const insets = useSafeAreaInsets();
+
+    // Refresh user data (credits) when screen comes into focus
+    useFocusEffect(
+        useCallback(() => {
+            if (user?.id) {
+                pb.collection('users').getOne(user.id)
+                    .then((updatedRecord) => {
+                        // Update the auth store with fresh data. 
+                        // This will trigger the onChange listener in AuthContext and update 'user' state everywhere.
+                        if (pb.authStore.isValid && pb.authStore.token) {
+                            pb.authStore.save(pb.authStore.token, updatedRecord);
+                        }
+                    })
+                    .catch((err) => console.log("Failed to refresh user credits:", err));
+            }
+        }, [user?.id])
+    );
 
     const handleLogout = () => {
         Alert.alert(

@@ -703,7 +703,7 @@ export const BookDetailScreen = () => {
                                 <>
                                     <Icon name="plus" size={16} color="white" className="mr-1" />
                                     <Text className="text-white font-medium text-sm">
-                                        {t('detail.newDraft', 'Yeni')}
+                                        {t('detail.newDraft', 'Yeni (-1)')}
                                     </Text>
                                 </>
                             )}
@@ -919,7 +919,7 @@ export const BookDetailScreen = () => {
                                                                     ) : (
                                                                         <>
                                                                             <Icon name="palette" size={18} color="white" className="mr-2" />
-                                                                            <Text className="font-bold text-white">Görsel İşle</Text>
+                                                                            <Text className="font-bold text-white">Resimle (-1)</Text>
                                                                         </>
                                                                     )}
                                                                 </TouchableOpacity>
