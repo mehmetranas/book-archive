@@ -51,7 +51,11 @@ routerAdd("POST", "/api/ai/quote-image-v2", (c) => {
     }
 
     const debugLogs = [];
-    const log = (m) => { console.log(m); debugLogs.push(m); };
+    // Only console.log critical info or start. Suppress chatty logs.
+    const log = (m) => {
+        // console.log(m); // Silenced console log
+        debugLogs.push(m);
+    };
 
     try {
         const info = c.requestInfo();

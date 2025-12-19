@@ -474,7 +474,7 @@ export const BookDetailScreen = () => {
                     const parsed = JSON.parse(mapData);
                     if (Array.isArray(parsed)) return parsed;
                 } catch (e) {
-                    // console.error('Global map parse error:', e); 
+                    // Global map parse error - silently ignore
                 }
             }
         }
@@ -777,7 +777,7 @@ export const BookDetailScreen = () => {
                                     try {
                                         setQuoteLoading(true);
                                         const res = await pb.send("/api/ai/quote", { body: { id: book.id }, method: 'POST' });
-                                        console.log("Quote response:", res);
+                                        // console.log("Quote response:", res);
 
                                         // 1. Optimistic Data Update (Add new item to list)
                                         if (res.newItem) {
@@ -814,7 +814,7 @@ export const BookDetailScreen = () => {
                                         Toast.show({ type: 'success', text1: 'Yeni taslak oluşturuldu!' });
 
                                     } catch (e: any) {
-                                        console.log("Quote Gen Error:", e);
+                                        // console.log("Quote Gen Error:", e);
                                         const errorMsg = e?.data?.error || e?.message || "Bilinmeyen hata";
                                         Alert.alert("Hata", `Alıntı üretilemedi: ${errorMsg}`);
                                     } finally {
@@ -1055,7 +1055,7 @@ export const BookDetailScreen = () => {
                                                                             }
 
                                                                         } catch (e: any) {
-                                                                            console.log("Image Gen Error:", e);
+                                                                            // console.log("Image Gen Error:", e);
                                                                             Alert.alert("Hata", "Görsel oluşturulamadı. Lütfen tekrar deneyin.");
                                                                         } finally {
                                                                             setLoadingItems(prev => ({ ...prev, [item.id]: false }));

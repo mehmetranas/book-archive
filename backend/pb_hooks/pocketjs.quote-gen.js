@@ -174,7 +174,7 @@ routerAdd("POST", "/api/ai/quote", (c) => {
             res = fetchWithModel("gemini-search");
             if (res.statusCode !== 200) throw new Error("Status " + res.statusCode);
         } catch (primaryErr) {
-            console.log("[Quote] Fallback to openai-fast");
+            // console.log("[Quote] Fallback to openai-fast");
             res = fetchWithModel("openai-fast");
         }
 
