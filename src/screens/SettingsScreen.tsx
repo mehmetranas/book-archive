@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
@@ -149,6 +149,42 @@ export const SettingsScreen = () => {
                             >
                                 <Text className="text-purple-700 dark:text-purple-300 font-bold">Yükle</Text>
                             </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
+
+                {/* Automation Settings */}
+                {user && (
+                    <View className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">
+                        <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                            Otomasyon
+                        </Text>
+                        <View className="flex-row items-center justify-between">
+                            <View className="flex-1 pr-4">
+                                <Text className="text-base text-gray-900 dark:text-white font-medium">Otomatik Analiz</Text>
+                                <Text className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    Yeni kitap eklendiğinde otomatik olarak analiz (özet, öneriler vb.) başlat.
+                                    <Text className="text-green-600 dark:text-green-400 font-bold"> (Ücretsiz)</Text>
+                                </Text>
+                            </View>
+                            <Switch
+                                value={user.settings?.auto_ai_enrichment || false}
+                                onValueChange={async (val) => {
+                                    if (!user.id) return;
+                                    try {
+                                        const newSettings = { ...(user.settings || {}), auto_ai_enrichment: val };
+                                        const updated = await pb.collection('users').update(user.id, { settings: newSettings });
+                                        if (pb.authStore.model) {
+                                            pb.authStore.save(pb.authStore.token, updated);
+                                        }
+                                    } catch (e) {
+                                        console.error(e);
+                                        Alert.alert("Hata", "Ayar kaydedilemedi.");
+                                    }
+                                }}
+                                trackColor={{ false: "#767577", true: "#9333EA" }}
+                                thumbColor={user.settings?.auto_ai_enrichment ? "#ffffff" : "#f4f3f4"}
+                            />
                         </View>
                     </View>
                 )}

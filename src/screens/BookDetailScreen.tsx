@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
-import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share, PermissionsAndroid, Modal, FlatList, Dimensions, TouchableWithoutFeedback, Linking, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share, PermissionsAndroid, Modal, FlatList, Dimensions, TouchableWithoutFeedback, Linking, StyleSheet, Switch } from 'react-native';
 import ReactNativeBlobUtil from 'react-native-blob-util';
 import ViewShot from 'react-native-view-shot';
 
@@ -14,6 +14,7 @@ import { pb } from '../services/pocketbase';
 import { Book } from './LibraryScreen';
 import { AIStatusBadge } from '../components/AIStatusBadge';
 import { CharacterCard } from '../components/CharacterCard';
+import { useAuth } from '../context/AuthContext';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSpotify } from '../hooks/useSpotify';
@@ -47,6 +48,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export const BookDetailScreen = () => {
     const { t } = useTranslation();
+    const { user } = useAuth();
     const { colorScheme } = useColorScheme();
     const isDark = colorScheme === 'dark';
     const insets = useSafeAreaInsets();
@@ -241,6 +243,27 @@ export const BookDetailScreen = () => {
                 type: 'error',
                 text1: t('common.error'),
                 text2: t('common.deleteError', 'Silme işlemi başarısız oldu.'),
+            });
+        }
+    });
+
+    const enrichmentMutation = useMutation({
+        mutationFn: async () => {
+            return await pb.collection('books').update(bookId, { enrichment_status: 'pending' });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['book', bookId] });
+            Toast.show({
+                type: 'success',
+                text1: t('common.success'),
+                text2: t('detail.analysisStarted', 'İçerik analizi başlatıldı.'),
+            });
+        },
+        onError: (err: any) => {
+            Toast.show({
+                type: 'error',
+                text1: t('common.error'),
+                text2: err.message,
             });
         }
     });
@@ -649,9 +672,91 @@ export const BookDetailScreen = () => {
                 </View>
 
                 {/* Movie Adaptation Suggestion & Smart Features */}
-                <MovieSuggestionSection bookTitle={book.title} suggestion={book.movie_suggestion} />
-                <SpotifySection keyword={book.spotify_keyword} />
-                <SmartNotesSection bookId={bookId} />
+                {/* Movie Adaptation Suggestion & Smart Features - Conditional */}
+                {(book.enrichment_status === 'completed' || book.enrichment_status === 'processing' || book.enrichment_status === 'pending') ? (
+                    <>
+                        {/* Show processing state specifically if pending/processing to give feedback in this section too if needed, 
+                            but usually ActivityIndicator in Description section handles 'pending' visual. 
+                            However, since we moved Spotify/Movie here, we should perhaps show them only when completed,
+                            or show a loader placeholder here if processing.
+                        */}
+
+                        {(book.enrichment_status === 'pending' || book.enrichment_status === 'processing') && (
+                            <View className="bg-indigo-50 dark:bg-indigo-900/20 p-6 rounded-xl mx-4 mb-6 items-center border border-indigo-100 dark:border-indigo-800 border-dashed">
+                                <ActivityIndicator size="large" color="#6366F1" className="mb-3" />
+                                <Text className="text-gray-900 dark:text-white font-medium text-center">
+                                    {t('detail.aiEnriching', 'Yapay zeka içerikleri hazırlıyor...')}
+                                </Text>
+                            </View>
+                        )}
+
+                        {book.enrichment_status === 'completed' && (
+                            <>
+                                <MovieSuggestionSection bookTitle={book.title} suggestion={book.movie_suggestion} />
+                                <SpotifySection keyword={book.spotify_keyword} />
+                                <SmartNotesSection bookId={bookId} />
+                            </>
+                        )}
+                    </>
+                ) : (
+                    <View className="bg-indigo-50 dark:bg-indigo-900/20 p-6 rounded-xl mx-4 mb-6 items-center border border-indigo-100 dark:border-indigo-800 shadow-sm relative overflow-hidden">
+                        {/* Decorative Background Elements */}
+                        <View className="absolute top-0 right-0 w-32 h-32 bg-indigo-200 dark:bg-indigo-800/30 rounded-full -mr-16 -mt-16 opacity-50" />
+                        <View className="absolute bottom-0 left-0 w-24 h-24 bg-purple-200 dark:bg-purple-800/30 rounded-full -ml-12 -mb-12 opacity-50" />
+
+                        <Icon name="creation" size={32} color="#6366F1" className="mb-3 relative z-10" />
+                        <Text className="text-lg font-bold text-gray-900 dark:text-white text-center mb-1 relative z-10">
+                            Yapay Zeka Destekli İçerik
+                        </Text>
+                        <Text className="text-sm text-gray-600 dark:text-gray-300 text-center mb-4 px-4 leading-5 relative z-10">
+                            Kitabınız için film önerileri, Spotify listeleri ve akıllı notlar oluşturun.
+                            {"\n"}
+                            <Text className="font-bold text-green-600 dark:text-green-400"> (Şimdilik Tamamen Ücretsiz!)</Text>
+                        </Text>
+
+                        <TouchableOpacity
+                            onPress={() => enrichmentMutation.mutate()}
+                            disabled={enrichmentMutation.isPending}
+                            className="bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-full flex-row items-center shadow-lg shadow-indigo-200 dark:shadow-none relative z-10"
+                        >
+                            {enrichmentMutation.isPending ? (
+                                <ActivityIndicator size="small" color="white" />
+                            ) : (
+                                <>
+                                    <Text className="text-white font-bold text-base">Analizi Başlat</Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+
+                        {/* Auto Enrich Switch */}
+                        {user && (
+                            <View className="mt-4 flex-row items-center justify-center opacity-80">
+                                <Switch
+                                    value={user.settings?.auto_ai_enrichment || false}
+                                    onValueChange={async (val) => {
+                                        if (!user.id) return;
+                                        try {
+                                            const newSettings = { ...(user.settings || {}), auto_ai_enrichment: val };
+                                            const updated = await pb.collection('users').update(user.id, { settings: newSettings });
+                                            if (pb.authStore.model) {
+                                                pb.authStore.save(pb.authStore.token, updated);
+                                            }
+                                        } catch (e) {
+                                            console.error(e);
+                                            Alert.alert("Hata", "Ayar kaydedilemedi.");
+                                        }
+                                    }}
+                                    trackColor={{ false: "#767577", true: "#34D399" }}
+                                    thumbColor={user.settings?.auto_ai_enrichment ? "#ffffff" : "#f4f3f4"}
+                                    style={{ transform: [{ scaleX: 0.7 }, { scaleY: 0.7 }] }}
+                                />
+                                <Text className="ml-2 text-xs text-indigo-700 dark:text-indigo-300 font-medium">
+                                    {t('detail.autoEnrich', 'Bunu her zaman otomatik yap')}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                )}
 
                 {/* --- AI Content Gallery (Slider) --- */}
                 <View className="mb-6">

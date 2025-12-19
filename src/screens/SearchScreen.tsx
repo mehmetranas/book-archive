@@ -91,9 +91,9 @@ export const SearchScreen = () => {
                 language_code: i18n.language, // 'tr' or 'en'
                 user: pb.authStore.record?.id,
                 status: 'want_to_read',
-                enrichment_status: 'pending',
                 isbn: isbn,
                 page_count: volumeInfo.pageCount || 0,
+                enrichment_status: (pb.authStore.model?.settings?.auto_ai_enrichment) ? 'pending' : 'none',
             };
 
             return await pb.collection('books').create(data);
@@ -214,9 +214,9 @@ export const SearchScreen = () => {
                 authors: manualAuthor ? [manualAuthor] : [],
                 cover_url: '',
                 status: 'want_to_read',
-                enrichment_status: 'pending',
                 language_code: i18n.language,
                 user: pb.authStore.record?.id,
+                enrichment_status: (pb.authStore.model?.settings?.auto_ai_enrichment) ? 'pending' : 'none',
             };
             return await pb.collection('books').create(data);
         },

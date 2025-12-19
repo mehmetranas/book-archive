@@ -32,6 +32,10 @@ export type User = {
   created: string;
   updated: string;
   credits: number;
+  settings?: {
+    auto_ai_enrichment?: boolean;
+    [key: string]: any;
+  };
 };
 
 export default pb;

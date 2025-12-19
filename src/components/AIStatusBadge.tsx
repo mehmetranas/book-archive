@@ -12,6 +12,8 @@ interface AIStatusBadgeProps {
 export const AIStatusBadge: React.FC<AIStatusBadgeProps> = ({ status, size = 20, showLabel = false }) => {
     const { t } = useTranslation();
 
+    if (!status || status === 'none') return null;
+
     const getStatusConfig = (status: string) => {
         switch (status) {
             case 'pending':
