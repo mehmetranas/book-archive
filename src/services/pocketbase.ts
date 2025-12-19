@@ -1,5 +1,10 @@
 import PocketBase, { AsyncAuthStore } from 'pocketbase';
+import EventSource from "react-native-sse";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Polyfill EventSource for PocketBase Realtime
+// @ts-ignore
+global.EventSource = EventSource;
 
 // AsyncStorage wrapper for PocketBase
 const store = new AsyncAuthStore({

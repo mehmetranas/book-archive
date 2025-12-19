@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useMode } from '../context/ModeContext';
+import { useConfig } from '../context/ConfigContext';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -14,6 +15,7 @@ export const SettingsScreen = () => {
     const { t, i18n } = useTranslation();
     const { logout, user } = useAuth();
     const { toggleMode } = useMode();
+    const { aiConfig } = useConfig();
     const insets = useSafeAreaInsets();
 
     // Refresh user data (credits) when screen comes into focus
@@ -164,7 +166,9 @@ export const SettingsScreen = () => {
                                 <Text className="text-base text-gray-900 dark:text-white font-medium">Otomatik Analiz</Text>
                                 <Text className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                                     Yeni kitap eklendiğinde otomatik olarak analiz (özet, öneriler vb.) başlat.
-                                    <Text className="text-green-600 dark:text-green-400 font-bold"> (Ücretsiz)</Text>
+                                    {aiConfig.promo_text ? (
+                                        <Text className="text-green-600 dark:text-green-400 font-bold"> {aiConfig.promo_text}</Text>
+                                    ) : null}
                                 </Text>
                             </View>
                             <Switch

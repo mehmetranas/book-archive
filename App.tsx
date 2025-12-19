@@ -8,6 +8,7 @@ import './global.css';
 import i18n from './src/config/i18n';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ModeProvider, useMode } from './src/context/ModeContext';
+import { ConfigProvider } from './src/context/ConfigContext';
 
 import { MainNavigator } from './src/navigation/MainNavigator';
 import { AuthNavigator } from './src/navigation/AuthNavigator';
@@ -65,11 +66,13 @@ function App(): React.JSX.Element {
         <SafeAreaProvider>
             <QueryClientProvider client={queryClient}>
                 <AuthProvider>
-                    <ModeProvider>
-                        <NavigationContainer>
-                            <AppNavigator />
-                        </NavigationContainer>
-                    </ModeProvider>
+                    <ConfigProvider>
+                        <ModeProvider>
+                            <NavigationContainer>
+                                <AppNavigator />
+                            </NavigationContainer>
+                        </ModeProvider>
+                    </ConfigProvider>
                 </AuthProvider>
             </QueryClientProvider>
             <Toast />

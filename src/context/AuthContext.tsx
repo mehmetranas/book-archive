@@ -40,6 +40,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     useEffect(() => {
         // Initialize auth state from stored token
         const initAuth = async () => {
+            // ... existing initAuth code ...
+            /* (Keeping the existing content inside initAuth mostly same, fetching it via view_file if needed but assuming context preservation) */
             try {
                 if (!pb.authStore.isValid) {
                     const storedAuth = await AsyncStorage.getItem('pb_auth');
@@ -75,15 +77,51 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
         initAuth();
 
-        // Listen to auth state changes
-        const unsubscribe = pb.authStore.onChange((token, model) => {
+        // Listen to auth state changes (client side login/logout)
+        const unsubscribeAuth = pb.authStore.onChange((token, model) => {
             setUser(model as User | null);
         });
 
         return () => {
-            unsubscribe();
+            unsubscribeAuth();
         };
     }, []);
+
+    // Realtime User Updates (Credits, etc.)
+    useEffect(() => {
+        let unsubscribe: (() => void) | undefined;
+
+        if (user?.id) {
+            console.log('AuthContext: Subscribing to user updates:', user.id);
+            pb.collection('users').subscribe(user.id, (e) => {
+                if (e.action === 'update' && e.record) {
+                    console.log('AuthContext: Realtime user update received', e.record);
+
+                    // State guncelle
+                    setUser((prev) => ({ ...prev, ...(e.record as unknown as User) }));
+
+                    // Store guncelle (Kritik: Sayfa yenilenirse eski data gelmesin)
+                    if (pb.authStore.isValid) {
+                        pb.authStore.save(pb.authStore.token, e.record);
+                    }
+                }
+            }).then((unsubFunc) => {
+                unsubscribe = unsubFunc;
+            }).catch((err) => {
+                console.error('AuthContext: Realtime subscription failed', err);
+            });
+        }
+
+        return () => {
+            if (unsubscribe) {
+                unsubscribe();
+            } else if (user?.id) {
+                // Eger unsubscribe fonksiyonu henuz set edilmediyse (promise donmediyse) 
+                // manuel unsubscribe deniyoruz.
+                pb.collection('users').unsubscribe(user.id).catch(() => { });
+            }
+        };
+    }, [user?.id]);
 
     const login = async (email: string, password: string) => {
         try {

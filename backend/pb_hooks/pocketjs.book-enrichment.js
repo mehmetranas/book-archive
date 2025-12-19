@@ -219,6 +219,74 @@ You must output a SINGLE valid JSON object. Do not include markdown formatting (
                     book.set("movie_suggestion", aiData.movie_suggestion);
                 }
 
+                // ---------------------------------------------------------
+                // KREDI DUSME LOGIC
+                // ---------------------------------------------------------
+                try {
+                    // 1. Guncel Fiyati Oku
+                    let cost = 0;
+
+                    try {
+                        // "ai_pricing" JSON alani oldugu icin filtrede sorun olabilir. Standart "created" ile cekiyoruz.
+                        const settingRecord = $app.findFirstRecordByFilter("system_settings", "created != ''");
+
+                        if (settingRecord) {
+                            // getString() otomatk olarak string'e cevirir (byte array veya text fark etmez)
+                            let aiPricingStr = settingRecord.getString("ai_pricing");
+                            let aiPricing = {};
+
+                            try {
+                                aiPricing = JSON.parse(aiPricingStr);
+                            } catch (e) {
+                                console.log(`[BookEnrich] Pricing Parse Error: ${e}`);
+                            }
+
+                            // 3. Veri Okuma
+                            if (aiPricing) {
+                                let rawCost = aiPricing.enrichment_cost;
+                                // String gelebilir ("1"), Number'a cevir
+                                cost = Number(rawCost) || 0;
+                            }
+                            console.log(`[BookEnrich] Fiyat Bilgisi Alindi: ${cost}`);
+                        } else {
+                            console.log("[BookEnrich] Ayar kaydi bulunamadi (system_settings tablosu bos).");
+                        }
+                    } catch (sErr) {
+                        console.log(`[BookEnrich] Ayar okuma hatasi: ${sErr}`);
+                    }
+
+                    // 2. Kredi Dus
+                    if (cost > 0) {
+                        const userId = book.getString("user");
+                        if (userId) {
+                            try {
+                                const userRec = $app.findRecordById("users", userId);
+                                const currentCredits = userRec.getInt("credits");
+
+                                // Eksiye dusme kontrolu (backend logic)
+                                const newCredits = (currentCredits - cost);
+                                const finalCredits = newCredits < 0 ? 0 : newCredits;
+
+                                userRec.set("credits", finalCredits);
+                                $app.save(userRec);
+                                console.log(`[BookEnrich] CHARGED User: ${userId} | Cost: ${cost} | NewBalance: ${finalCredits}`);
+                            } catch (uErr) {
+                                console.log(`[BookEnrich] User charge error: ${uErr}`);
+                            }
+                        } else {
+                            console.log("[BookEnrich] User ID missing on book record.");
+                        }
+                    } else {
+                        console.log(`[BookEnrich] Islem ucretsiz. Cost found: ${cost}`);
+                    }
+
+                } catch (creditErr) {
+                    console.log(`[BookEnrich] General Credit Error: ${creditErr}`);
+                }
+
+
+                // ---------------------------------------------------------
+
                 book.set("enrichment_status", "completed");
                 $app.save(book);
                 console.log(`[BookEnrich] Tamamlandi: ${title}`);

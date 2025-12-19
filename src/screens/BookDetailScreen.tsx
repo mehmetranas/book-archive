@@ -15,6 +15,7 @@ import { Book } from './LibraryScreen';
 import { AIStatusBadge } from '../components/AIStatusBadge';
 import { CharacterCard } from '../components/CharacterCard';
 import { useAuth } from '../context/AuthContext';
+import { useConfig } from '../context/ConfigContext';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSpotify } from '../hooks/useSpotify';
@@ -49,6 +50,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export const BookDetailScreen = () => {
     const { t } = useTranslation();
     const { user } = useAuth();
+    const { aiConfig } = useConfig();
     const { colorScheme } = useColorScheme();
     const isDark = colorScheme === 'dark';
     const insets = useSafeAreaInsets();
@@ -711,7 +713,9 @@ export const BookDetailScreen = () => {
                         <Text className="text-sm text-gray-600 dark:text-gray-300 text-center mb-4 px-4 leading-5 relative z-10">
                             Kitabınız için film önerileri, Spotify listeleri ve akıllı notlar oluşturun.
                             {"\n"}
-                            <Text className="font-bold text-green-600 dark:text-green-400"> (Şimdilik Tamamen Ücretsiz!)</Text>
+                            {aiConfig.promo_text ? (
+                                <Text className="font-bold text-green-600 dark:text-green-400"> ({aiConfig.promo_text})</Text>
+                            ) : null}
                         </Text>
 
                         <TouchableOpacity
