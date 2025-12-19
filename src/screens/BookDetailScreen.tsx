@@ -779,25 +779,39 @@ export const BookDetailScreen = () => {
                                         const res = await pb.send("/api/ai/quote", { body: { id: book.id }, method: 'POST' });
                                         console.log("Quote response:", res);
 
-                                        queryClient.invalidateQueries({ queryKey: ['book', book.id] });
+                                        // 1. Optimistic Data Update (Add new item to list)
+                                        if (res.newItem) {
+                                            queryClient.setQueryData(['book', book.id], (oldData: any) => {
+                                                if (!oldData) return oldData;
 
-                                        // Slider'ı en son eklenen öğeye kaydır
-                                        if (res.newItem && typeof res.newItem === 'object') {
-                                            // Bekleme süresi gerekebilir, UI render olduktan sonra
+                                                // 'generated_content' listesine yeni elemanı ekle
+                                                // Backend muhtemelen tüm listeyi veya sadece yeni itemi dönüyor olabilir.
+                                                // Genelde API yapımıza göre newItem tek obje döner.
+
+                                                // Create a fresh array copy with new item appended
+                                                // Note: we display list REVERSED (newest first) in UI, but in data it's appended (oldest first).
+                                                // So we just push to array.
+                                                const currentList = Array.isArray(oldData.generated_content) ? oldData.generated_content : [];
+                                                const updatedList = [...currentList, res.newItem];
+
+                                                return { ...oldData, generated_content: updatedList };
+                                            });
+
+                                            // Scroll to beginning (since we reverse the list in UI, new item is at index 0)
                                             setTimeout(() => {
-                                                // FlatList'i sona kaydır (Eğer ref varsa)
-                                            }, 500);
+                                                flatListQuoteRef.current?.scrollToOffset({ offset: 0, animated: true });
+                                            }, 300);
                                         }
 
-                                        Toast.show({ type: 'success', text1: 'Yeni taslak eklendi!' });
+                                        // 2. Optimistic Credit Update
+                                        if (user && res.remainingCredits !== undefined) {
+                                            queryClient.setQueryData(['user', user.id], (oldUser: any) => {
+                                                if (!oldUser) return oldUser;
+                                                return { ...oldUser, credits: res.remainingCredits };
+                                            });
+                                        }
 
-                                        // Scroll to end (new item) after a small delay
-                                        setTimeout(() => {
-                                            // We can't easily know the exact index without data reload, bu we can try scrolling to end
-                                            // or just let user see it.
-                                            // Better: Just toast
-                                            Toast.show({ type: 'success', text1: 'Yeni taslak eklendi!' });
-                                        }, 100);
+                                        Toast.show({ type: 'success', text1: 'Yeni taslak oluşturuldu!' });
 
                                     } catch (e: any) {
                                         console.log("Quote Gen Error:", e);
@@ -952,12 +966,19 @@ export const BookDetailScreen = () => {
                                                             <>
                                                                 {/* Toggle Image Visibility */}
                                                                 <TouchableOpacity
-                                                                    className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex-row items-center justify-center border border-gray-200 dark:border-gray-700"
+                                                                    className={`w-10 h-10 rounded-full flex-row items-center justify-center border ${hiddenImages[item.id]
+                                                                        ? 'bg-slate-700 border-slate-600 opacity-80' // Gizliyse: Metalik Koyu
+                                                                        : 'bg-purple-600 border-purple-500' // Açıksa: Mor (Uygulama Teması)
+                                                                        }`}
                                                                     onPress={() => {
                                                                         setHiddenImages(prev => ({ ...prev, [item.id]: !prev[item.id] }));
                                                                     }}
                                                                 >
-                                                                    <Icon name={hiddenImages[item.id] ? "image" : "image-off"} size={20} color="#6B7280" />
+                                                                    <Icon
+                                                                        name={hiddenImages[item.id] ? "eye-off" : "eye"}
+                                                                        size={20}
+                                                                        color={hiddenImages[item.id] ? "#94A3B8" : "white"}
+                                                                    />
                                                                 </TouchableOpacity>
 
                                                                 {/* Share Button (Image Mode) */}
@@ -1001,16 +1022,35 @@ export const BookDetailScreen = () => {
                                                                             });
 
                                                                             if (res.fileName) {
+                                                                                // 1. Update Book Data (Deep Copy to trigger re-render)
                                                                                 queryClient.setQueryData(['book', book.id], (oldData: any) => {
                                                                                     if (!oldData) return oldData;
+
+                                                                                    // Create a new array reference
                                                                                     const newContent = oldData.generated_content.map((c: any) => {
                                                                                         if (c.id === item.id) {
+                                                                                            // Create a new object reference for the item
                                                                                             return { ...c, image: res.fileName };
                                                                                         }
                                                                                         return c;
                                                                                     });
+
+                                                                                    // Return a new object reference for the book
                                                                                     return { ...oldData, generated_content: newContent };
                                                                                 });
+
+                                                                                // 2. Optimistic Credit Update (Decrement by 1)
+                                                                                if (user && res.remainingCredits !== undefined) {
+                                                                                    // If backend returns remaining credits, use it. Or just decrement locally.
+                                                                                    // Since we have AuthContext, we might need to update that too if it listens to cache? 
+                                                                                    // Ideally AuthContext should be updated or we rely on the user query.
+                                                                                    // Let's update the 'user' query if it exists.
+                                                                                    queryClient.setQueryData(['user', user.id], (oldUser: any) => {
+                                                                                        if (!oldUser) return oldUser;
+                                                                                        return { ...oldUser, credits: res.remainingCredits };
+                                                                                    });
+                                                                                }
+
                                                                                 Toast.show({ type: 'success', text1: 'Görsel oluşturuldu!' });
                                                                             }
 

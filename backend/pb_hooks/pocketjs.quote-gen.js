@@ -116,9 +116,7 @@ routerAdd("POST", "/api/ai/quote", (c) => {
     if (!Array.isArray(history)) history = [];
     history = history.filter(item => typeof item === 'object' && item !== null && item.id);
 
-    if (history.length >= 2) {
-        return c.json(400, { error: "Bu kitap için maksimum 2 alıntı oluşturabilirsiniz." });
-    }
+
 
     // -------------------------------------------------------------------------
     // 4. AI REQUEST
