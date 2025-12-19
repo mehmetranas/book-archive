@@ -25,7 +25,8 @@
         "success": "Success",
         "error": "Error",
         "add": "Add",
-        "retry": "Retry"
+        "retry": "Retry",
+        "credit": "Credit"
     },
     "settings": {
         "title": "Settings",
@@ -71,7 +72,8 @@
         "generatingImage": "Generating image...",
         "changeStatus": "Change Status",
         "regenerateAI": "Regenerate Content",
-        "aiNotes": "Analysis Notes"
+        "aiNotes": "Analysis Notes",
+        "newDraft": "New Quote"
     },
     "aiStatus": {
         "pending": "Pending",

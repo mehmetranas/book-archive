@@ -25,7 +25,8 @@
         "success": "Başarılı",
         "error": "Hata",
         "add": "Ekle",
-        "retry": "Tekrar Dene"
+        "retry": "Tekrar Dene",
+        "credit": "Kredi"
     },
     "settings": {
         "title": "Ayarlar",
@@ -71,7 +72,8 @@
         "generatingImage": "Görsel hazırlanıyor...",
         "changeStatus": "Durumu Değiştir",
         "regenerateAI": "İçeriği Yeniden Oluştur",
-        "aiNotes": "Analiz Notları"
+        "aiNotes": "Analiz Notları",
+        "newDraft": "Yeni Alıntı"
     },
     "aiStatus": {
         "pending": "Beklemede",

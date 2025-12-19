@@ -768,55 +768,60 @@ export const BookDetailScreen = () => {
                         <Text className="text-xl font-bold text-gray-900 dark:text-white">
                             {t('detail.gallery', 'Alıntılar & Galeri')}
                         </Text>
-                        <TouchableOpacity
-                            onPress={async () => {
-                                try {
-                                    setQuoteLoading(true);
-                                    const res = await pb.send("/api/ai/quote", { body: { id: book.id }, method: 'POST' });
-                                    console.log("Quote response:", res);
+                        <View className="flex-row items-center">
+                            <Text className="mr-3 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                1 {t('common.credit', 'Kredi')}
+                            </Text>
+                            <TouchableOpacity
+                                onPress={async () => {
+                                    try {
+                                        setQuoteLoading(true);
+                                        const res = await pb.send("/api/ai/quote", { body: { id: book.id }, method: 'POST' });
+                                        console.log("Quote response:", res);
 
-                                    queryClient.invalidateQueries({ queryKey: ['book', book.id] });
+                                        queryClient.invalidateQueries({ queryKey: ['book', book.id] });
 
-                                    // Slider'ı en son eklenen öğeye kaydır
-                                    if (res.newItem && typeof res.newItem === 'object') {
-                                        // Bekleme süresi gerekebilir, UI render olduktan sonra
-                                        setTimeout(() => {
-                                            // FlatList'i sona kaydır (Eğer ref varsa)
-                                        }, 500);
-                                    }
+                                        // Slider'ı en son eklenen öğeye kaydır
+                                        if (res.newItem && typeof res.newItem === 'object') {
+                                            // Bekleme süresi gerekebilir, UI render olduktan sonra
+                                            setTimeout(() => {
+                                                // FlatList'i sona kaydır (Eğer ref varsa)
+                                            }, 500);
+                                        }
 
-                                    Toast.show({ type: 'success', text1: 'Yeni taslak eklendi!' });
-
-                                    // Scroll to end (new item) after a small delay
-                                    setTimeout(() => {
-                                        // We can't easily know the exact index without data reload, bu we can try scrolling to end
-                                        // or just let user see it.
-                                        // Better: Just toast
                                         Toast.show({ type: 'success', text1: 'Yeni taslak eklendi!' });
-                                    }, 100);
 
-                                } catch (e: any) {
-                                    console.log("Quote Gen Error:", e);
-                                    const errorMsg = e?.data?.error || e?.message || "Bilinmeyen hata";
-                                    Alert.alert("Hata", `Alıntı üretilemedi: ${errorMsg}`);
-                                } finally {
-                                    setQuoteLoading(false);
-                                }
-                            }}
-                            disabled={quoteLoading || (book.enrichment_status === 'pending' || book.enrichment_status === 'processing')}
-                            className={`px-4 py-2 rounded-full flex-row items-center ${(quoteLoading || book.enrichment_status === 'pending' || book.enrichment_status === 'processing') ? 'bg-gray-100 dark:bg-gray-800 opacity-50' : 'bg-purple-600'}`}
-                        >
-                            {quoteLoading ? (
-                                <ActivityIndicator size="small" color="#9333EA" />
-                            ) : (
-                                <>
-                                    <Icon name="plus" size={16} color="white" className="mr-1" />
-                                    <Text className="text-white font-medium text-sm">
-                                        {t('detail.newDraft', 'Yeni (-1)')}
-                                    </Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
+                                        // Scroll to end (new item) after a small delay
+                                        setTimeout(() => {
+                                            // We can't easily know the exact index without data reload, bu we can try scrolling to end
+                                            // or just let user see it.
+                                            // Better: Just toast
+                                            Toast.show({ type: 'success', text1: 'Yeni taslak eklendi!' });
+                                        }, 100);
+
+                                    } catch (e: any) {
+                                        console.log("Quote Gen Error:", e);
+                                        const errorMsg = e?.data?.error || e?.message || "Bilinmeyen hata";
+                                        Alert.alert("Hata", `Alıntı üretilemedi: ${errorMsg}`);
+                                    } finally {
+                                        setQuoteLoading(false);
+                                    }
+                                }}
+                                disabled={quoteLoading || (book.enrichment_status === 'pending' || book.enrichment_status === 'processing')}
+                                className={`px-4 py-2 rounded-full flex-row items-center ${(quoteLoading || book.enrichment_status === 'pending' || book.enrichment_status === 'processing') ? 'bg-gray-100 dark:bg-gray-800 opacity-50' : 'bg-purple-600'}`}
+                            >
+                                {quoteLoading ? (
+                                    <ActivityIndicator size="small" color="#9333EA" />
+                                ) : (
+                                    <>
+                                        <Icon name="plus" size={16} color="white" className="mr-1" />
+                                        <Text className="text-white font-medium text-sm">
+                                            {t('detail.newDraft', 'Yeni Alıntı')}
+                                        </Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     {/* Content Slider */}
@@ -942,25 +947,22 @@ export const BookDetailScreen = () => {
                                                     </ViewShot>
 
                                                     {/* Action Buttons */}
-                                                    <View className="p-4 border-t border-gray-100 dark:border-gray-700 flex-row gap-3">
+                                                    <View className="p-3 border-t border-gray-100 dark:border-gray-700 flex-row justify-start gap-3">
                                                         {hasImage ? (
                                                             <>
                                                                 {/* Toggle Image Visibility */}
                                                                 <TouchableOpacity
-                                                                    className="flex-1 bg-gray-100 dark:bg-gray-800 py-3 rounded-xl flex-row items-center justify-center border border-gray-200 dark:border-gray-700"
+                                                                    className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex-row items-center justify-center border border-gray-200 dark:border-gray-700"
                                                                     onPress={() => {
                                                                         setHiddenImages(prev => ({ ...prev, [item.id]: !prev[item.id] }));
                                                                     }}
                                                                 >
-                                                                    <Icon name={hiddenImages[item.id] ? "image" : "image-off"} size={18} color="#6B7280" className="mr-2" />
-                                                                    <Text className="font-bold text-gray-700 dark:text-gray-300">
-                                                                        {hiddenImages[item.id] ? 'Görseli Aç' : 'Görseli Kapat'}
-                                                                    </Text>
+                                                                    <Icon name={hiddenImages[item.id] ? "image" : "image-off"} size={20} color="#6B7280" />
                                                                 </TouchableOpacity>
 
                                                                 {/* Share Button (Image Mode) */}
                                                                 <TouchableOpacity
-                                                                    className="flex-1 bg-gray-900 dark:bg-white py-3 rounded-xl flex-row items-center justify-center shadow-sm"
+                                                                    className="w-10 h-10 bg-gray-900 dark:bg-white rounded-full flex-row items-center justify-center shadow-sm"
                                                                     onPress={async () => {
                                                                         try {
                                                                             const viewShot = viewShotRefs.current[item.id];
@@ -974,17 +976,14 @@ export const BookDetailScreen = () => {
                                                                         }
                                                                     }}
                                                                 >
-                                                                    <Icon name="share-variant" size={18} color={isDark ? "black" : "white"} className="mr-2" />
-                                                                    <Text className={`font-bold ${isDark ? 'text-gray-900' : 'text-white'}`}>
-                                                                        {t('common.share', 'Paylaş')}
-                                                                    </Text>
+                                                                    <Icon name="share-variant" size={20} color={isDark ? "black" : "white"} />
                                                                 </TouchableOpacity>
                                                             </>
                                                         ) : (
                                                             <>
                                                                 {/* Generate Image Button */}
                                                                 <TouchableOpacity
-                                                                    className={`flex-1 py-3 rounded-xl flex-row items-center justify-center shadow-lg dark:shadow-none ${loadingItems[item.id] ? 'bg-gray-100 dark:bg-gray-800' : 'bg-purple-600 shadow-purple-200'}`}
+                                                                    className={`w-10 h-10 rounded-full flex-row items-center justify-center shadow-lg dark:shadow-none ${loadingItems[item.id] ? 'bg-gray-100 dark:bg-gray-800' : 'bg-purple-600 shadow-purple-200'}`}
                                                                     disabled={loadingItems[item.id]}
                                                                     onPress={async () => {
                                                                         const imagePrompt = item.imagePrompt;
@@ -1026,16 +1025,13 @@ export const BookDetailScreen = () => {
                                                                     {loadingItems[item.id] ? (
                                                                         <ActivityIndicator size="small" color="#9333EA" />
                                                                     ) : (
-                                                                        <>
-                                                                            <Icon name="palette" size={18} color="white" className="mr-2" />
-                                                                            <Text className="font-bold text-white">Resimle (-1)</Text>
-                                                                        </>
+                                                                        <Icon name="palette" size={20} color="white" />
                                                                     )}
                                                                 </TouchableOpacity>
 
                                                                 {/* Share Button (Default/Gradient Mode) */}
                                                                 <TouchableOpacity
-                                                                    className="flex-1 bg-gray-200 dark:bg-gray-700 py-3 rounded-xl flex-row items-center justify-center shadow-sm"
+                                                                    className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full flex-row items-center justify-center shadow-sm"
                                                                     onPress={async () => {
                                                                         try {
                                                                             const viewShot = viewShotRefs.current[item.id];
@@ -1048,10 +1044,7 @@ export const BookDetailScreen = () => {
                                                                         }
                                                                     }}
                                                                 >
-                                                                    <Icon name="share-variant" size={18} color={isDark ? "white" : "black"} className="mr-2" />
-                                                                    <Text className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                                        {t('common.share', 'Paylaş')}
-                                                                    </Text>
+                                                                    <Icon name="share-variant" size={20} color={isDark ? "white" : "black"} />
                                                                 </TouchableOpacity>
                                                             </>
                                                         )}
@@ -1376,7 +1369,7 @@ const MovieSuggestionSection = ({ bookTitle, suggestion }: { bookTitle: string; 
 
     return (
         <TouchableOpacity
-            onPress={() => navigation.navigate("MovieDetail", { tmdbId: movie.id, mediaType: movie.mediaType })}
+            onPress={() => navigation.navigate("MovieDetail", { tmdbId: movie.id, mediaType: movie.media_type })}
             activeOpacity={0.7}
             className="mx-4 mb-4 bg-gray-900 rounded-xl p-4 flex-row items-center border border-gray-700 shadow-sm relative overflow-hidden"
         >
