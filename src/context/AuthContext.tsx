@@ -8,6 +8,7 @@ import React, {
 import { useQueryClient } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { pb, User } from '../services/pocketbase';
+import { RevenueCatService } from '../services/revenuecat';
 
 type AuthContextType = {
     user: User | null;
@@ -128,7 +129,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             const authData = await pb
                 .collection('users')
                 .authWithPassword(email, password);
-            setUser(authData.record as User);
+            // Type cast: RecordModel -> unknown -> User (Güvenli Cast)
+            setUser(authData.record as unknown as User);
+            // Identify user in RevenueCat
+            RevenueCatService.login(authData.record.id);
         } catch (error: any) {
             throw new Error(error?.message || 'Login failed');
         }
@@ -163,6 +167,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const logout = async () => {
         pb.authStore.clear();
         setUser(null);
+        RevenueCatService.logout();
         queryClient.clear();
     };
 
