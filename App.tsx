@@ -13,6 +13,7 @@ import { ConfigProvider } from './src/context/ConfigContext';
 import { MainNavigator } from './src/navigation/MainNavigator';
 import { AuthNavigator } from './src/navigation/AuthNavigator';
 import { MovieNavigator } from './src/navigation/MovieNavigator';
+import { RevenueCatService } from './src/services/revenuecat';
 
 // TanStack Query client
 const queryClient = new QueryClient({
@@ -50,6 +51,9 @@ function App(): React.JSX.Element {
     React.useEffect(() => {
         const loadLanguage = async () => {
             // ... existing code ...
+            // Initialize RevenueCat
+            await RevenueCatService.initialize();
+
             try {
                 const storedLang = await AsyncStorage.getItem('user-language');
                 if (storedLang) {

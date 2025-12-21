@@ -67,8 +67,12 @@ All backend logic resides in `/backend/pb_hooks/`.
 *   **Process:**
     1.  Finds books with `enrichment_status = 'pending'`.
     2.  Checks User Credits (Deducts dynamically based on `system_settings`).
-    3.  Calls AI to generate Summary, Tags, and structured metadata.
-    4.  Updates Book record.
+    3.  **AI Fallback Strategy:** Uses a robust fallback mechanism to ensure reliability. It attempts to generate metadata using models in the following priority:
+        *   **1. `gemini-search`:** Primary high-quality model.
+        *   **2. `openai`:** Secondary reliable model.
+        *   **3. `onep-ai-fast`:** Faster, lower-latency backup.
+    4.  Calls AI (using the fallback chain) to generate Summary, Tags, and structured metadata via `fetchWithFallback`.
+    5.  Updates Book record.
 
 ### B. Credit System
 *   **Logic:** Credits are stored on the `users` collection.

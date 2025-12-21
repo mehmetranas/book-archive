@@ -9,6 +9,11 @@ PODS:
   - hermes-engine (0.76.5):
     - hermes-engine/Pre-built (= 0.76.5)
   - hermes-engine/Pre-built (0.76.5)
+  - PurchasesHybridCommon (17.24.0):
+    - RevenueCat (= 5.50.1)
+  - PurchasesHybridCommonUI (17.24.0):
+    - PurchasesHybridCommon (= 17.24.0)
+    - RevenueCatUI (= 5.50.1)
   - RCT-Folly (2024.01.01.00):
     - boost
     - DoubleConversion
@@ -1661,6 +1666,9 @@ PODS:
     - React-logger (= 0.76.5)
     - React-perflogger (= 0.76.5)
     - React-utils (= 0.76.5)
+  - RevenueCat (5.50.1)
+  - RevenueCatUI (5.50.1):
+    - RevenueCat (= 5.50.1)
   - RNCAsyncStorage (2.2.0):
     - DoubleConversion
     - glog
@@ -1724,6 +1732,12 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - RNPaywalls (9.6.11):
+    - PurchasesHybridCommonUI (= 17.24.0)
+    - React-Core
+  - RNPurchases (9.6.11):
+    - PurchasesHybridCommon (= 17.24.0)
+    - React-Core
   - RNScreens (4.4.0):
     - DoubleConversion
     - glog
@@ -1879,6 +1893,8 @@ DEPENDENCIES:
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - "RNCClipboard (from `../node_modules/@react-native-clipboard/clipboard`)"
   - RNLocalize (from `../node_modules/react-native-localize`)
+  - RNPaywalls (from `../node_modules/react-native-purchases-ui`)
+  - RNPurchases (from `../node_modules/react-native-purchases`)
   - RNScreens (from `../node_modules/react-native-screens`)
   - RNVectorIcons (from `../node_modules/react-native-vector-icons`)
   - VisionCamera (from `../node_modules/react-native-vision-camera`)
@@ -1886,6 +1902,10 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - PurchasesHybridCommon
+    - PurchasesHybridCommonUI
+    - RevenueCat
+    - RevenueCatUI
     - SocketRocket
 
 EXTERNAL SOURCES:
@@ -2032,6 +2052,10 @@ EXTERNAL SOURCES:
     :path: "../node_modules/@react-native-clipboard/clipboard"
   RNLocalize:
     :path: "../node_modules/react-native-localize"
+  RNPaywalls:
+    :path: "../node_modules/react-native-purchases-ui"
+  RNPurchases:
+    :path: "../node_modules/react-native-purchases"
   RNScreens:
     :path: "../node_modules/react-native-screens"
   RNVectorIcons:
@@ -2049,6 +2073,8 @@ SPEC CHECKSUMS:
   fmt: 10c6e61f4be25dc963c36bd73fc7b1705fe975be
   glog: 08b301085f15bcbb6ff8632a8ebaf239aae04e6a
   hermes-engine: 06a9c6900587420b90accc394199527c64259db4
+  PurchasesHybridCommon: 3b79d2602b94ed9ee3e8c4b31be4cd2a640c9dc9
+  PurchasesHybridCommonUI: cb0d8e875a0a1594e003e21b0612eb40b2c508b1
   RCT-Folly: 84578c8756030547307e4572ab1947de1685c599
   RCTDeprecation: fb7d408617e25d7f537940000d766d60149c5fea
   RCTRequired: 9aaf0ffcc1f41f0c671af863970ef25c422a9920
@@ -2110,9 +2136,13 @@ SPEC CHECKSUMS:
   React-utils: f584a494ac233c7857bab176416b0c49cb4037ba
   ReactCodegen: 3a68408bf68d0957abcd13d610f76420005c1d91
   ReactCommon: 5809a8ee421b7219221a475b78180f8f34b5c5ec
+  RevenueCat: c676920ae9b3c9cd08c49d26e7cd4c04a0263069
+  RevenueCatUI: a0566e6da2a8ae917a00956e76b7aa474de62f14
   RNCAsyncStorage: f27db574d8d0d56438ec4e9ba345872f2d0f29f4
   RNCClipboard: 5fdc5218e7aa17c955bfc6c58264b406034ec31b
   RNLocalize: 8f5c1117b28c3d37a2858e7100f80c3b4237ba7d
+  RNPaywalls: 0704568176af79db4489b018a8a99f74c9d8d988
+  RNPurchases: 0189c1cd0cc18ced16bdecc9560bd6e0a98a0a40
   RNScreens: 351f431ef2a042a1887d4d90e1c1024b8ae9d123
   RNVectorIcons: d023ce4b93302120c93666cb0194f48cf4b6ecc5
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748

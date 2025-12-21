@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useMode } from '../context/ModeContext';
 import { useConfig } from '../context/ConfigContext';
@@ -17,6 +17,7 @@ export const SettingsScreen = () => {
     const { toggleMode } = useMode();
     const { aiConfig } = useConfig();
     const insets = useSafeAreaInsets();
+    const navigation = useNavigation();
 
     // Refresh user data (credits) when screen comes into focus
     useFocusEffect(
@@ -55,42 +56,10 @@ export const SettingsScreen = () => {
         );
     };
 
-    const handleBuyCredits = async () => {
-        try {
-            if (!user) return;
+    // ... (rest of the hooks)
 
-            Alert.alert(
-                "Test Mağazası",
-                "Bu bir test sürümüdür. Ücretsiz kredi yüklemek ister misiniz?",
-                [
-                    { text: "İptal", style: "cancel" },
-                    {
-                        text: "10 Kredi Yükle (Ücretsiz)",
-                        onPress: async () => {
-                            try {
-                                const res = await pb.send("/api/mock/buy-credits", {
-                                    method: "POST",
-                                    body: { amount: 10 }
-                                });
-
-                                if (res.success) {
-                                    Alert.alert("Başarılı", res.message);
-                                    // Update local user state immediately
-                                    if (pb.authStore.model) {
-                                        const updatedModel = { ...pb.authStore.model, credits: res.credits };
-                                        pb.authStore.save(pb.authStore.token, updatedModel);
-                                    }
-                                }
-                            } catch (err: any) {
-                                Alert.alert("Hata", "Kredi yüklenemedi: " + err.message);
-                            }
-                        }
-                    }
-                ]
-            );
-        } catch (e) {
-            console.error(e);
-        }
+    const handleBuyCredits = () => {
+        (navigation as any).navigate('Store');
     };
 
     return (

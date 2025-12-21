@@ -93,6 +93,7 @@ export const SearchScreen = () => {
                 status: 'want_to_read',
                 isbn: isbn,
                 page_count: volumeInfo.pageCount || 0,
+                description: volumeInfo.description || '', // Add description from Google Books
                 enrichment_status: (pb.authStore.model?.settings?.auto_ai_enrichment) ? 'pending' : 'none',
             };
 

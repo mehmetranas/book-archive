@@ -67,6 +67,39 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
 
         console.log(`[BookEnrich] ${records.length} kitap detaylandiriliyor...`);
 
+        // Fallback Strategy function
+        function fetchWithFallback(prompt, key) {
+            const models = ["gemini-search", "openai", "onep-ai-fast"];
+            let lastError = null;
+
+            for (const model of models) {
+                try {
+                    // console.log(`[BookEnrich] Trying model: ${model}...`);
+                    const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}?json=true&model=${model}`;
+
+                    const res = $http.send({
+                        url: url,
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${key}`,
+                            "Content-Type": "application/json"
+                        },
+                        timeout: 120
+                    });
+
+                    if (res.statusCode === 200) {
+                        console.log(`[BookEnrich] Success with model: ${model}`);
+                        return res;
+                    }
+                    console.log(`[BookEnrich] Model ${model} failed (Status: ${res.statusCode}). Next...`);
+                } catch (e) {
+                    console.log(`[BookEnrich] Model ${model} error: ${e}. Next...`);
+                    lastError = e;
+                }
+            }
+            throw new Error("All AI models failed. Last Error: " + lastError);
+        }
+
         records.forEach((book) => {
             const title = book.get("title");
 
@@ -150,26 +183,19 @@ You must output a SINGLE valid JSON object. Do not include markdown formatting (
       "relation_type": "Adaptation"
   }
 }
+
+### SELF-CORRECTION & QUALITY CHECK
+Before generating the final JSON, perform a silent internal review:
+1. **Relevance Check:** Is the 'description' strictly about the specific book provided in INPUT DATA? If you don't know the book, do not hallunicate a plot; instead, provide a generic description of the genre.
+2. **Language Check:** Ensure 'description', 'tags', and 'mood' are in TURKISH.
+3. **Format Check:** Ensure the output is a valid, parseable JSON object without Markdown formatting.
                 `;
 
                 // --- Pollinations AI Request ---
                 const pollinationKey = $os.getenv("POLLINATION_KEY") || "";
                 if (!pollinationKey) throw new Error("POLLINATION_KEY not set");
 
-                // Construct full URL with seed (random or specific)
-                const url = `https://text.pollinations.ai/${encodeURIComponent(promptText)}?json=true&model=openai`;
-
-                const res = $http.send({
-                    url: url,
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${pollinationKey}`,
-                        "Content-Type": "application/json"
-                    },
-                    timeout: 120 // Increased timeout for generation
-                });
-
-                if (res.statusCode !== 200) throw new Error("AI API Error: " + res.raw);
+                const res = fetchWithFallback(promptText, pollinationKey);
 
                 // --- Response Parsing ---
                 // Pollinations returns existing text directly
@@ -187,10 +213,16 @@ You must output a SINGLE valid JSON object. Do not include markdown formatting (
                 const aiData = JSON.parse(rawText);
 
                 // --- Kaydet ---
-                // Eger kitabin orijinal aciklamasi cok kisaysa (<50 karakter) veya yoksa, AI'in yazdigini kullan
+                // --- Kaydet ---
                 const currentDesc = book.get("description") || "";
 
-                if (currentDesc.length < 50 && aiData.description) {
+                // MANTIKSAL KARAR:
+                // Google Books'tan gelen (veya elle girilen) bir aciklama varsa, AI'in urettigini kullanma.
+                // Sadece aciklama cok kisaysa (<50 karakter) veya yoksa guncelle.
+                if (currentDesc.length >= 50) {
+                    console.log(`[BookEnrich] Mevcut aciklama korunuyor (${currentDesc.length} chars). AI aciklamasi atlandi.`);
+                } else if (aiData.description) {
+                    console.log(`[BookEnrich] Aciklama guncelleniyor (AI)...`);
                     book.set("description", aiData.description);
                 }
 

@@ -6,6 +6,7 @@ import { BookDetailScreen } from '../screens/BookDetailScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { BarcodeScannerScreen } from '../screens/BarcodeScannerScreen';
 import { MovieDetailScreen } from '../screens/movies/MovieDetailScreen';
+import { StoreScreen } from '../screens/StoreScreen';
 
 export type MainStackParamList = {
     MainTabs: undefined;
@@ -13,6 +14,7 @@ export type MainStackParamList = {
     MovieDetail: { movieId?: string; tmdbId?: number; mediaType?: 'movie' | 'tv' };
     BarcodeScanner: undefined;
     Profile: undefined;
+    Store: undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -31,6 +33,11 @@ export const MainNavigator = () => {
             <Stack.Screen
                 name="Profile"
                 component={ProfileScreen}
+                options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen
+                name="Store"
+                component={StoreScreen}
                 options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
             />
         </Stack.Navigator>

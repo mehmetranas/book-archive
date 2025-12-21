@@ -638,7 +638,7 @@ export const BookDetailScreen = () => {
                         {t('detail.description', 'Özet')}
                     </Text>
 
-                    {(book.enrichment_status === 'pending' || book.enrichment_status === 'processing') ? (
+                    {(!book.description && (book.enrichment_status === 'pending' || book.enrichment_status === 'processing')) ? (
                         <View className="items-center py-6 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-gray-700 border-dashed">
                             <ActivityIndicator size="small" color="#9333EA" />
                             <Text className="text-purple-600 dark:text-purple-400 font-medium mt-3 text-sm">
@@ -1086,6 +1086,19 @@ export const BookDetailScreen = () => {
                                                                 >
                                                                     <Icon name="share-variant" size={20} color={isDark ? "white" : "black"} />
                                                                 </TouchableOpacity>
+
+                                                                {/* Credit Info Note */}
+                                                                <View className="ml-3 justify-center">
+                                                                    <View className="flex-row items-center">
+                                                                        <Icon name="creation" size={14} color="#9333EA" className="mr-1" />
+                                                                        <Text className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                                                                            Görsel Üret
+                                                                        </Text>
+                                                                    </View>
+                                                                    <Text className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                                                        1 Kredi • Yaklaşık 10 saniye
+                                                                    </Text>
+                                                                </View>
                                                             </>
                                                         )}
                                                     </View>
