@@ -111,7 +111,7 @@ routerAdd("POST", "/api/ai/quote-image-v2", (c) => {
         if (!itemInfo) log(`[Item] Content ID ${contentId} not found in history!`);
 
         // Eğer item bulunamadıysa bile resim üretmeye çalışıyoruz (Fallback prompt)
-        const imagePrompt = itemInfo ? itemInfo.imagePrompt : "Artistic book cover design minimal";
+        const imagePrompt = (itemInfo && itemInfo.imagePrompt) ? itemInfo.imagePrompt : "Artistic book cover design minimal";
 
         // Prompt Temizligi
         const safePrompt = imagePrompt.replace(/[^a-zA-Z0-9\s,]/g, "").replace(/\s+/g, " ").trim().substring(0, 300);

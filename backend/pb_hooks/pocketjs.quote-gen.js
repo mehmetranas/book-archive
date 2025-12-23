@@ -152,7 +152,7 @@ routerAdd("POST", "/api/ai/quote", (c) => {
 
     const fetchWithModel = (model) => {
         const encodedPrompt = encodeURIComponent(promptText.trim());
-        const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=${model}&seed=${seed}&json=true`;
+        const url = `https://text.pollinations.ai/${encodedPrompt}?model=${model}&seed=${seed}&json=true`;
 
         return $http.send({
             url: url,
@@ -201,6 +201,14 @@ routerAdd("POST", "/api/ai/quote", (c) => {
     // 5. UPDATE DB & DEDUCT CREDITS
     // -------------------------------------------------------------------------
     try {
+        // 5.0 Validation: Ensure AI actually returned content
+        if (!result.quote || !result.imagePrompt) {
+            return c.json(502, {
+                error: "AI_EMPTY_RESPONSE",
+                message: "Yapay zeka geçerli bir içerik üretemedi. Lütfen tekrar deneyin."
+            });
+        }
+
         // 5.1 Save new quote to Book
         const newId = $security.randomString(10);
         const newItem = {

@@ -107,7 +107,7 @@ routerAdd("POST", "/api/ai/recommend-books", (c) => {
         const encodedPrompt = encodeURIComponent(prompt.trim());
         const seed = Math.floor(Math.random() * 1000000);
         // Using json=true for better stability with compatible models
-        const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=${model}&seed=${seed}&json=true`;
+        const url = `https://text.pollinations.ai/${encodedPrompt}?model=${model}&seed=${seed}&json=true`;
 
         return $http.send({
             url: url,

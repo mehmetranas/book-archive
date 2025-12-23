@@ -840,8 +840,8 @@ export const BookDetailScreen = () => {
 
                     {/* Content Slider */}
                     {(() => {
-                        const contentList = ((book as any)?.generated_content || []) as GeneratedContentItem[];
-                        const reverseList = [...contentList].reverse(); // Show newest first? Or oldest? Usually newest first is better for 'Drafts'. Let's keep original order (oldest first) so user scrolls to see new ones? Or reverse?
+                        const contentList = (((book as any)?.generated_content || []) as GeneratedContentItem[]).filter(item => item && item.quote);
+                        const reverseList = [...contentList].reverse();
                         // User request: "slide olacak". Usually like a carousel.
                         // Let's use Reverse (Newest First) so they see what they just created.
 
@@ -923,13 +923,13 @@ export const BookDetailScreen = () => {
 
                                                                         {/* Quote Text - Dynamic Size */}
                                                                         <Text
-                                                                            className={`text-white text-center font-serif italic shadow-sm px-2 ${item.quote.length > 300 ? 'text-xs leading-4' :
-                                                                                item.quote.length > 200 ? 'text-sm leading-5' :
-                                                                                    item.quote.length > 100 ? 'text-lg leading-7' :
+                                                                            className={`text-white text-center font-serif italic shadow-sm px-2 ${(item.quote || '').length > 300 ? 'text-xs leading-4' :
+                                                                                (item.quote || '').length > 200 ? 'text-sm leading-5' :
+                                                                                    (item.quote || '').length > 100 ? 'text-lg leading-7' :
                                                                                         'text-xl leading-8'
                                                                                 }`}
                                                                         >
-                                                                            "{item.quote}"
+                                                                            "{item.quote || ''}"
                                                                         </Text>
 
                                                                         {/* Bottom Quote Icon */}

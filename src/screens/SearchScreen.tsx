@@ -472,9 +472,6 @@ export const SearchScreen = () => {
                                     Krediniz: {user?.credits ?? 0}
                                 </Text>
                             </View>
-                            <TouchableOpacity onPress={handleBuyCredits} className="bg-purple-600 px-3 py-1.5 rounded-lg">
-                                <Text className="text-white text-xs font-bold">Kredi Al</Text>
-                            </TouchableOpacity>
                         </View>
 
                         {!aiResults ? (
@@ -497,11 +494,6 @@ export const SearchScreen = () => {
                                     <View className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg mb-4 flex-row items-center">
                                         <Icon name="alert-circle" size={20} color="#DC2626" className="mr-2" />
                                         <Text className="text-red-700 dark:text-red-300 flex-1">{aiError}</Text>
-                                        {aiError.includes("bakiye") && (
-                                            <TouchableOpacity onPress={handleBuyCredits} className="bg-red-100 dark:bg-red-800 ml-2 px-2 py-1 rounded">
-                                                <Text className="text-red-800 dark:text-white text-xs font-bold">Al</Text>
-                                            </TouchableOpacity>
-                                        )}
                                     </View>
                                 )}
 

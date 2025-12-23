@@ -3,18 +3,31 @@ import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import { pb } from './pocketbase';
 
 // API KEYS (Placeholder - Replace with your actual RevenueCat Public API Keys)
+// API KEYS
 const API_KEYS = {
-    ios: "test_rcIvnkhbcSEPjugCYCgmAPlJgQE", // Placeholder from documentation/screenshot
-    android: "test_rcIvnkhbcSEPjugCYCgmAPlJgQE" // Placeholder from documentation/screenshot
+    ios: {
+        debug: "test_rcIvnkhbcSEPjugCYCgmAPlJgQE", // Development / Sandbox Key
+        release: "sk_LbRjJNOEcTiCwumUxoOOVpxYgponc" // Production / App Store Key
+    },
+    android: {
+        debug: "test_rcIvnkhbcSEPjugCYCgmAPlJgQE",
+        release: "sk_LbRjJNOEcTiCwumUxoOOVpxYgponc"
+    }
 };
 
 export const RevenueCatService = {
     initialize: async () => {
         try {
+            let apiKey = "";
+
             if (Platform.OS === 'ios') {
-                Purchases.configure({ apiKey: API_KEYS.ios });
+                apiKey = __DEV__ ? API_KEYS.ios.debug : API_KEYS.ios.release;
             } else if (Platform.OS === 'android') {
-                Purchases.configure({ apiKey: API_KEYS.android });
+                apiKey = __DEV__ ? API_KEYS.android.debug : API_KEYS.android.release;
+            }
+
+            if (apiKey) {
+                Purchases.configure({ apiKey });
             }
 
             // Enable debug logs for development
