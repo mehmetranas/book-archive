@@ -915,9 +915,10 @@ export const MovieDetailScreen = () => {
                                     <TouchableOpacity
                                         key={`director-${director.id}`}
                                         className="mr-4 w-24"
-                                        onPress={() => navigation.navigate('DirectorMovies', {
-                                            directorId: director.id,
-                                            directorName: director.name
+                                        onPress={() => navigation.navigate('PersonMovies', {
+                                            personId: director.id,
+                                            personName: director.name,
+                                            role: 'director'
                                         })}
                                     >
                                         <View className="w-24 h-36 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden mb-2 border-2 border-blue-100 dark:border-blue-900">
@@ -940,7 +941,15 @@ export const MovieDetailScreen = () => {
 
                                 {/* Cast */}
                                 {tmdbMovie?.credits?.cast?.slice(0, 10).map((c) => (
-                                    <View key={c.id} className="mr-4 w-24">
+                                    <TouchableOpacity
+                                        key={c.id}
+                                        className="mr-4 w-24"
+                                        onPress={() => navigation.navigate('PersonMovies', {
+                                            personId: c.id,
+                                            personName: c.name,
+                                            role: 'actor'
+                                        })}
+                                    >
                                         <View className="w-24 h-36 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden mb-2">
                                             {c.profile_path ? (
                                                 <Image
@@ -956,7 +965,7 @@ export const MovieDetailScreen = () => {
                                         </View>
                                         <Text className="text-xs font-semibold text-gray-900 dark:text-white" numberOfLines={1}>{c.name}</Text>
                                         <Text className="text-[10px] text-gray-500 dark:text-gray-400" numberOfLines={1}>{c.character}</Text>
-                                    </View>
+                                    </TouchableOpacity>
                                 ))}
                             </ScrollView>
                         </View>

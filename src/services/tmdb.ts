@@ -223,6 +223,20 @@ export const getDirectorMoviesProxy = (personId: number, page = 1) => {
     });
 };
 
+/**
+ * Oyuncunun Filmlerini Getirir
+ * @param personId Oyuncunun TMDB ID'si
+ * @param page Sayfa numarası
+ */
+export const getActorMoviesProxy = (personId: number, page = 1) => {
+    return tmdbRequest<TMDBSearchResponse>("discover/movie", {
+        with_cast: personId,
+        sort_by: "primary_release_date.desc",
+        page: page,
+        language: "tr-TR"
+    });
+};
+
 export const addMovieToLibrary = async (movie: Movie | TMDBDetailResponse) => {
     // Robust TV detection: explicit type OR presence of tv-specific fields
     const isTv = movie.media_type === 'tv' || (!!(movie as any).first_air_date && !(movie as any).release_date);

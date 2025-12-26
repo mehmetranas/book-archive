@@ -5,18 +5,18 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { getDirectorMoviesProxy } from '../../services/tmdb';
+import { getDirectorMoviesProxy, getActorMoviesProxy } from '../../services/tmdb';
 
 const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
 const ITEM_WIDTH = (width - 48) / COLUMN_COUNT;
 
-export const DirectorMoviesScreen = () => {
+export const PersonMoviesScreen = () => {
     const { t } = useTranslation();
     const route = useRoute();
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const { directorId, directorName } = route.params as { directorId: number; directorName: string };
+    const { personId, personName, role } = route.params as { personId: number; personName: string; role: 'director' | 'actor' };
 
     const {
         data,
@@ -25,8 +25,11 @@ export const DirectorMoviesScreen = () => {
         hasNextPage,
         fetchNextPage,
     } = useInfiniteQuery({
-        queryKey: ['directorMovies', directorId],
-        queryFn: ({ pageParam = 1 }) => getDirectorMoviesProxy(directorId, pageParam),
+        queryKey: ['personMovies', personId, role],
+        queryFn: ({ pageParam = 1 }) =>
+            role === 'director'
+                ? getDirectorMoviesProxy(personId, pageParam)
+                : getActorMoviesProxy(personId, pageParam),
         getNextPageParam: (lastPage: any) => {
             if (lastPage.page < lastPage.total_pages) {
                 return lastPage.page + 1;
@@ -88,8 +91,10 @@ export const DirectorMoviesScreen = () => {
                         <Icon name="arrow-left" size={24} color="#374151" />
                     </TouchableOpacity>
                     <View className="ml-4 flex-1">
-                        <Text className="text-xs text-blue-500 font-bold uppercase tracking-wider">{t('library.directorName', 'Yönetmen')}</Text>
-                        <Text className="text-xl font-bold text-gray-900 dark:text-white" numberOfLines={1}>{directorName}</Text>
+                        <Text className="text-xs text-blue-500 font-bold uppercase tracking-wider">
+                            {role === 'director' ? t('library.directorName', 'Yönetmen') : t('detail.actor', 'Oyuncu')}
+                        </Text>
+                        <Text className="text-xl font-bold text-gray-900 dark:text-white" numberOfLines={1}>{personName}</Text>
                     </View>
                 </View>
             </View>
@@ -122,7 +127,7 @@ export const DirectorMoviesScreen = () => {
                         <View className="flex-1 items-center justify-center py-20">
                             <Icon name="movie-off-outline" size={64} color="#9CA3AF" />
                             <Text className="text-gray-500 dark:text-gray-400 mt-4 text-center">
-                                {t('search.noResults', 'Bu yönetmene ait film bulunamadı.')}
+                                {t('search.noResults', 'Sonuç bulunamadı.')}
                             </Text>
                         </View>
                     }
