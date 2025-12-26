@@ -608,9 +608,16 @@ export const MovieDetailScreen = () => {
                         {/* Tags / Meta Row */}
                         <View className="flex-row items-center gap-2 mb-3 flex-wrap">
                             {year && (
-                                <View className="bg-black/60 px-2.5 py-1 rounded-md backdrop-blur-md border border-white/10">
+                                <TouchableOpacity
+                                    onPress={() => navigation.navigate('DiscoveryList', {
+                                        id: year,
+                                        name: String(year),
+                                        role: 'year'
+                                    })}
+                                    className="bg-black/60 px-2.5 py-1 rounded-md backdrop-blur-md border border-white/10"
+                                >
                                     <Text className="text-white text-xs font-bold">{year}</Text>
-                                </View>
+                                </TouchableOpacity>
                             )}
                             {certification && (
                                 <View className="bg-black/60 px-2.5 py-1 rounded-md backdrop-blur-md border border-white/10">

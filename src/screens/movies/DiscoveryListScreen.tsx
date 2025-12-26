@@ -5,7 +5,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { getDirectorMoviesProxy, getActorMoviesProxy, getGenreMoviesProxy } from '../../services/tmdb';
+import { getDirectorMoviesProxy, getActorMoviesProxy, getGenreMoviesProxy, getYearMoviesProxy } from '../../services/tmdb';
 
 const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
@@ -17,9 +17,9 @@ export const DiscoveryListScreen = () => {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const params = route.params as {
-        id: number;
+        id: number | string;
         name: string;
-        role: 'director' | 'actor' | 'genre'
+        role: 'director' | 'actor' | 'genre' | 'year'
     };
     const { id, name, role } = params;
 
@@ -32,9 +32,10 @@ export const DiscoveryListScreen = () => {
     } = useInfiniteQuery({
         queryKey: ['discoveryList', id, role],
         queryFn: ({ pageParam = 1 }) => {
-            if (role === 'director') return getDirectorMoviesProxy(id, pageParam);
-            if (role === 'actor') return getActorMoviesProxy(id, pageParam);
-            if (role === 'genre') return getGenreMoviesProxy(id, pageParam);
+            if (role === 'director') return getDirectorMoviesProxy(Number(id), pageParam);
+            if (role === 'actor') return getActorMoviesProxy(Number(id), pageParam);
+            if (role === 'genre') return getGenreMoviesProxy(Number(id), pageParam);
+            if (role === 'year') return getYearMoviesProxy(Number(id), pageParam);
             return Promise.resolve({ results: [] } as any);
         },
         getNextPageParam: (lastPage: any) => {
@@ -88,6 +89,7 @@ export const DiscoveryListScreen = () => {
         if (role === 'director') return t('library.directorName', 'Yönetmen');
         if (role === 'actor') return t('detail.actor', 'Oyuncu');
         if (role === 'genre') return t('detail.genre', 'Tür'); // Added fallback for potential missing key
+        if (role === 'year') return t('detail.year', 'Yıl');
         return '';
     };
 

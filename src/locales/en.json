@@ -66,6 +66,8 @@
         "titlePlaceholder": "Book Title",
         "authorPlaceholder": "Author",
         "description": "Description",
+        "genre": "Genre",
+        "year": "Year",
         "aiEnriching": "Preparing book details...",
         "noDescription": "No description yet.",
         "quoteImage": "Quote Image",

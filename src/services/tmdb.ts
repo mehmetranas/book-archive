@@ -251,6 +251,30 @@ export const getGenreMoviesProxy = (genreId: number, page = 1) => {
     });
 };
 
+/**
+ * Belirli Bir Yıldaki Popüler Filmleri Getirir
+ * @param year Yapım yılı
+ * @param page Sayfa numarası
+ */
+export const getYearMoviesProxy = (year: number, page = 1) => {
+    return tmdbRequest<TMDBSearchResponse>("discover/movie", {
+        primary_release_year: year,
+        sort_by: "popularity.desc",
+        page: page,
+        language: "tr-TR"
+    });
+};
+
+/**
+ * Film Serisi Detaylarını Getirir
+ * @param collectionId Seri ID'si
+ */
+export const getCollectionDetailsProxy = (collectionId: number) => {
+    return tmdbRequest<any>(`collection/${collectionId}`, {
+        language: "tr-TR"
+    });
+};
+
 export const addMovieToLibrary = async (movie: Movie | TMDBDetailResponse) => {
     // Robust TV detection: explicit type OR presence of tv-specific fields
     const isTv = movie.media_type === 'tv' || (!!(movie as any).first_air_date && !(movie as any).release_date);

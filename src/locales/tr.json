@@ -66,6 +66,8 @@
         "titlePlaceholder": "Kitap Adı",
         "authorPlaceholder": "Yazar",
         "description": "Özet",
+        "genre": "Tür",
+        "year": "Yıl",
         "aiEnriching": "Kitap detayları hazırlanıyor...",
         "noDescription": "Henüz bir özet yok.",
         "quoteImage": "Alıntı görseli",

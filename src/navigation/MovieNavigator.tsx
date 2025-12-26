@@ -7,7 +7,7 @@ import { DiscoveryListScreen } from '../screens/movies/DiscoveryListScreen';
 export type MovieStackParamList = {
     MovieTabs: undefined;
     MovieDetail: { movieId?: string; tmdbId?: number; mediaType?: 'movie' | 'tv' };
-    DiscoveryList: { id: number; name: string; role: 'director' | 'actor' | 'genre' };
+    DiscoveryList: { id: number | string; name: string; role: 'director' | 'actor' | 'genre' | 'year' };
 };
 
 const Stack = createNativeStackNavigator<MovieStackParamList>();
