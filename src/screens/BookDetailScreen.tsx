@@ -55,7 +55,7 @@ export const BookDetailScreen = () => {
     const isDark = colorScheme === 'dark';
     const insets = useSafeAreaInsets();
     const route = useRoute();
-    const navigation = useNavigation();
+    const navigation = useNavigation<any>();
     const queryClient = useQueryClient();
     const { bookId } = route.params as { bookId: string };
 
@@ -596,9 +596,19 @@ export const BookDetailScreen = () => {
                                 <Text className="text-xl font-bold text-gray-900 dark:text-white mb-1">
                                     {book.title}
                                 </Text>
-                                <Text className="text-gray-600 dark:text-gray-400 mb-1">
-                                    {Array.isArray(book.authors) ? book.authors.join(', ') : book.authors}
-                                </Text>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        const author = Array.isArray(book.authors) ? book.authors[0] : book.authors;
+                                        navigation.navigate('MainTabs', {
+                                            screen: 'Search',
+                                            params: { query: `inauthor:"${author}"` }
+                                        });
+                                    }}
+                                >
+                                    <Text className="text-blue-600 dark:text-blue-400 font-medium mb-1 underline">
+                                        {Array.isArray(book.authors) ? book.authors.join(', ') : book.authors}
+                                    </Text>
+                                </TouchableOpacity>
                                 {book.isbn && (
                                     <Text className="text-gray-500 dark:text-gray-500 text-sm mb-4">
                                         ISBN: {book.isbn}
@@ -629,6 +639,17 @@ export const BookDetailScreen = () => {
                                     {book.page_count} {t('common.pages', 'Sayfa')}
                                 </Text>
                             </View>
+                        )}
+                        {book.google_books_id && (
+                            <TouchableOpacity
+                                onPress={() => Linking.openURL(`https://books.google.com/books?id=${book.google_books_id}`)}
+                                className="mt-3 flex-row items-center bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 self-start shadow-sm"
+                            >
+                                <Icon name="google" size={14} color={isDark ? "#D1D5DB" : "#4B5563"} />
+                                <Text className="ml-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                    {t('detail.viewOnGoogleBooks', "Google Books")}
+                                </Text>
+                            </TouchableOpacity>
                         )}
                     </View>
                 </View>
