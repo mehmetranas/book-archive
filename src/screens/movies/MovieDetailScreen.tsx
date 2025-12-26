@@ -609,6 +609,24 @@ export const MovieDetailScreen = () => {
                     <View className="absolute bottom-0 w-full h-[50%] bg-black/50" />
                     <View className="absolute bottom-0 w-full h-[20%] bg-black/80" />
 
+                    {/* Trailer Play Button */}
+                    {tmdbMovie?.videos?.results?.some(v => v.site === 'YouTube') && (
+                        <View className="absolute inset-0 items-center justify-center">
+                            <TouchableOpacity
+                                onPress={() => {
+                                    const trailer = tmdbMovie.videos.results.find(v => v.type === 'Trailer' && v.site === 'YouTube') || tmdbMovie.videos.results[0];
+                                    setPlayingVideoId(trailer.key);
+                                }}
+                                className="w-16 h-16 bg-blue-500 rounded-full items-center justify-center shadow-2xl border-4 border-white/20"
+                            >
+                                <Icon name="play" size={36} color="white" />
+                            </TouchableOpacity>
+                            <Text className="text-white font-bold mt-2 shadow-sm uppercase tracking-widest text-[10px]">
+                                {t('library.watchTrailer', 'Fragmanı İzle')}
+                            </Text>
+                        </View>
+                    )}
+
                     {/* Note: Navbar moved outside ScrollView for sticky effect */}
 
                     {/* Bottom Title Area in Header */}
@@ -650,9 +668,9 @@ export const MovieDetailScreen = () => {
                             {tmdbMovie?.external_ids?.imdb_id && (
                                 <TouchableOpacity
                                     onPress={() => setImdbModalVisible(true)}
-                                    className="bg-[#F5C518] px-2.5 py-1 rounded-md justify-center items-center"
+                                    className="bg-[#F5C518] px-2.5 py-1 rounded-md shadow-sm ml-1"
                                 >
-                                    <Text className="text-black text-xs font-bold">IMDb</Text>
+                                    <Text className="text-black text-xs font-black">IMDb</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -1036,6 +1054,37 @@ export const MovieDetailScreen = () => {
                                             </View>
                                         </TouchableOpacity>
                                     ))}
+                            </ScrollView>
+                        </View>
+                    )}
+
+                    {/* Videos & Trailers Carousel */}
+                    {tmdbMovie?.videos?.results && tmdbMovie.videos.results.length > 1 && (
+                        <View className="mb-8">
+                            <Text className="text-sm font-bold text-gray-900 dark:text-white mb-4 opacity-70 uppercase tracking-widest">
+                                {t('detail.videos', 'FRAGMANLAR & VİDEOLAR')}
+                            </Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                {tmdbMovie.videos.results.slice(0, 10).map((video) => (
+                                    <TouchableOpacity
+                                        key={video.id}
+                                        className="mr-4 w-48"
+                                        onPress={() => setPlayingVideoId(video.key)}
+                                    >
+                                        <View className="w-48 h-28 bg-gray-200 dark:bg-gray-800 rounded-xl overflow-hidden mb-2 relative">
+                                            <Image
+                                                source={{ uri: `https://img.youtube.com/vi/${video.key}/mqdefault.jpg` }}
+                                                className="w-full h-full"
+                                                resizeMode="cover"
+                                            />
+                                            <View className="absolute inset-0 items-center justify-center bg-black/20">
+                                                <Icon name="play-circle" size={40} color="white" />
+                                            </View>
+                                        </View>
+                                        <Text className="text-xs font-bold text-gray-900 dark:text-white" numberOfLines={2}>{video.name}</Text>
+                                        <Text className="text-[10px] text-gray-400 mt-1 uppercase">{video.type}</Text>
+                                    </TouchableOpacity>
+                                ))}
                             </ScrollView>
                         </View>
                     )}
