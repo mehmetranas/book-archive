@@ -734,11 +734,19 @@ export const MovieDetailScreen = () => {
                     {tmdbMovie?.genres && tmdbMovie.genres.length > 0 && (
                         <View className="flex-row flex-wrap gap-2 mb-6">
                             {tmdbMovie.genres.map((g) => (
-                                <View key={g.id} className="border border-gray-200 dark:border-gray-800 rounded-full px-3 py-1">
+                                <TouchableOpacity
+                                    key={g.id}
+                                    onPress={() => navigation.navigate('DiscoveryList', {
+                                        id: g.id,
+                                        name: g.name,
+                                        role: 'genre'
+                                    })}
+                                    className="border border-gray-200 dark:border-gray-800 rounded-full px-3 py-1 bg-gray-50 dark:bg-gray-900 shadow-sm"
+                                >
                                     <Text className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                                         {g.name}
                                     </Text>
-                                </View>
+                                </TouchableOpacity>
                             ))}
                         </View>
                     )}
@@ -915,9 +923,9 @@ export const MovieDetailScreen = () => {
                                     <TouchableOpacity
                                         key={`director-${director.id}`}
                                         className="mr-4 w-24"
-                                        onPress={() => navigation.navigate('PersonMovies', {
-                                            personId: director.id,
-                                            personName: director.name,
+                                        onPress={() => navigation.navigate('DiscoveryList', {
+                                            id: director.id,
+                                            name: director.name,
                                             role: 'director'
                                         })}
                                     >
@@ -944,9 +952,9 @@ export const MovieDetailScreen = () => {
                                     <TouchableOpacity
                                         key={c.id}
                                         className="mr-4 w-24"
-                                        onPress={() => navigation.navigate('PersonMovies', {
-                                            personId: c.id,
-                                            personName: c.name,
+                                        onPress={() => navigation.navigate('DiscoveryList', {
+                                            id: c.id,
+                                            name: c.name,
                                             role: 'actor'
                                         })}
                                     >

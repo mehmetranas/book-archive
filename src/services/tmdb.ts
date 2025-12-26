@@ -237,6 +237,20 @@ export const getActorMoviesProxy = (personId: number, page = 1) => {
     });
 };
 
+/**
+ * Tür Bazlı Filmleri Getirir
+ * @param genreId Tür ID'si
+ * @param page Sayfa numarası
+ */
+export const getGenreMoviesProxy = (genreId: number, page = 1) => {
+    return tmdbRequest<TMDBSearchResponse>("discover/movie", {
+        with_genres: genreId,
+        sort_by: "popularity.desc",
+        page: page,
+        language: "tr-TR"
+    });
+};
+
 export const addMovieToLibrary = async (movie: Movie | TMDBDetailResponse) => {
     // Robust TV detection: explicit type OR presence of tv-specific fields
     const isTv = movie.media_type === 'tv' || (!!(movie as any).first_air_date && !(movie as any).release_date);

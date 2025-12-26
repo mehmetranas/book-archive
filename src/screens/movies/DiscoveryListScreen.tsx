@@ -5,18 +5,23 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { getDirectorMoviesProxy, getActorMoviesProxy } from '../../services/tmdb';
+import { getDirectorMoviesProxy, getActorMoviesProxy, getGenreMoviesProxy } from '../../services/tmdb';
 
 const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
 const ITEM_WIDTH = (width - 48) / COLUMN_COUNT;
 
-export const PersonMoviesScreen = () => {
+export const DiscoveryListScreen = () => {
     const { t } = useTranslation();
     const route = useRoute();
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const { personId, personName, role } = route.params as { personId: number; personName: string; role: 'director' | 'actor' };
+    const params = route.params as {
+        id: number;
+        name: string;
+        role: 'director' | 'actor' | 'genre'
+    };
+    const { id, name, role } = params;
 
     const {
         data,
@@ -25,11 +30,13 @@ export const PersonMoviesScreen = () => {
         hasNextPage,
         fetchNextPage,
     } = useInfiniteQuery({
-        queryKey: ['personMovies', personId, role],
-        queryFn: ({ pageParam = 1 }) =>
-            role === 'director'
-                ? getDirectorMoviesProxy(personId, pageParam)
-                : getActorMoviesProxy(personId, pageParam),
+        queryKey: ['discoveryList', id, role],
+        queryFn: ({ pageParam = 1 }) => {
+            if (role === 'director') return getDirectorMoviesProxy(id, pageParam);
+            if (role === 'actor') return getActorMoviesProxy(id, pageParam);
+            if (role === 'genre') return getGenreMoviesProxy(id, pageParam);
+            return Promise.resolve({ results: [] } as any);
+        },
         getNextPageParam: (lastPage: any) => {
             if (lastPage.page < lastPage.total_pages) {
                 return lastPage.page + 1;
@@ -77,6 +84,13 @@ export const PersonMoviesScreen = () => {
         </TouchableOpacity>
     );
 
+    const getHeaderLabel = () => {
+        if (role === 'director') return t('library.directorName', 'Yönetmen');
+        if (role === 'actor') return t('detail.actor', 'Oyuncu');
+        if (role === 'genre') return t('detail.genre', 'Tür'); // Added fallback for potential missing key
+        return '';
+    };
+
     return (
         <View className="flex-1 bg-white dark:bg-gray-950">
             <StatusBar barStyle="dark-content" />
@@ -91,10 +105,8 @@ export const PersonMoviesScreen = () => {
                         <Icon name="arrow-left" size={24} color="#374151" />
                     </TouchableOpacity>
                     <View className="ml-4 flex-1">
-                        <Text className="text-xs text-blue-500 font-bold uppercase tracking-wider">
-                            {role === 'director' ? t('library.directorName', 'Yönetmen') : t('detail.actor', 'Oyuncu')}
-                        </Text>
-                        <Text className="text-xl font-bold text-gray-900 dark:text-white" numberOfLines={1}>{personName}</Text>
+                        <Text className="text-xs text-blue-500 font-bold uppercase tracking-wider">{getHeaderLabel()}</Text>
+                        <Text className="text-xl font-bold text-gray-900 dark:text-white" numberOfLines={1}>{name}</Text>
                     </View>
                 </View>
             </View>
@@ -107,7 +119,7 @@ export const PersonMoviesScreen = () => {
                 <FlatList
                     data={movies}
                     renderItem={renderMovieItem}
-                    keyExtractor={(item) => `movie-${item.id}`}
+                    keyExtractor={(item) => `${role}-movie-${item.id}`}
                     numColumns={COLUMN_COUNT}
                     contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 20 }}
                     onEndReached={() => {
