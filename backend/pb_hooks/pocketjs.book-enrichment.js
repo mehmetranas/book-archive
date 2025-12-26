@@ -69,7 +69,7 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
 
         // Fallback Strategy function
         function fetchWithFallback(prompt, key) {
-            const models = ["gemini-search", "openai", "onep-ai-fast"];
+            const models = ["openai", "gemini-search", "openai-fast"];
             let lastError = null;
 
             for (const model of models) {
@@ -137,58 +137,57 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
                 // --- PROMPT ---
                 const promptText = `
 ### ROLE
-You are an expert Literary Data Analyst and Librarian AI. Your task is to generate structured, high-quality metadata for a given book to populate a "Second Brain" reading application.
+You are a Senior Literary Researcher and Metadata Specialist. Your goal is to extract or generate high-quality, ACCURATE metadata for the following book.
 
 ### INPUT DATA
 Book Title: "${title}"
 Author: "${author}"
 
+### HALLUCINATION PREVENTION (CRITICAL)
+1. **NO INVENTIONS**: If you cannot find reliable information about this EXACT book and author, do NOT make it up. Instead, set 'description' to a generic genre-based summary and all other specific fields to null or logical defaults.
+2. **METADATA INTEGRITY**: Only provide a 'page_count' if it is a commonly accepted value for major editions.
+3. **MOVIE VERIFICATION**: Do not assume a movie is an adaptation just because of the title. Verify the specific author and plot. If in doubt, use 'Vibe Match' or has_movie: false.
+
 ### OUTPUT FORMAT
-You must output a SINGLE valid JSON object. Do not include markdown formatting (like \`\`\`json), preambles, or explanations. Just the raw JSON object.
+JSON only. No markdown.
 
 ### JSON SCHEMA & CONTENT RULES
 {
-  "description": "String. A detailed, engaging, and literary summary of the book (3-4 sentences). It should capture the plot and the philosophical depth. LANGUAGE: TURKISH.",
-  "tags": ["String", "String", ...], // Array of strings. 5-7 conceptual tags (e.g., 'varoluşçuluk', 'baba-oğul', 'distopya'). Lowercase. LANGUAGE: TURKISH.
-  "page_count": Integer, // Estimated page count.
-  "spotify_keyword": "String. The BEST search query to find a matching 'ambient' or 'mood' playlist on Spotify. Focus on genre, mood, and instruments (e.g., 'gloomy cello', 'dark academia', 'jazz noir'). LANGUAGE: ENGLISH (Must be English for better API results).",
-  "primary_color": "String", // HEX color code (e.g., '#2A2A2A') that best represents the book's cover or atmosphere.
-  "mood": "String", // One word summary of the atmosphere (e.g., 'Melankolik', 'Gergin', 'Epik'). LANGUAGE: TURKISH.
+  "description": "Engaging summary (3-4 sentences). Focus on theme and plot. LANGUAGE: TURKISH.",
+  "tags": ["String", ...], // 5-7 conceptual/genre tags. Lowercase. LANGUAGE: TURKISH.
+  "page_count": Integer, // Realistic estimate.
+  "spotify_keyword": "Best mood/ambient keyword (e.g., 'dark cello suspense'). LANGUAGE: ENGLISH.",
+  "primary_color": "HEX code representing the book's vibe/cover.",
+  "mood": "One word atmosphere (e.g., 'Melankolik'). LANGUAGE: TURKISH.",
   "movie_suggestion": {
-      "has_movie": Boolean, // true if a relevant movie exists.
-      "title": "String", // Title of the movie. LANGUAGE: ENGLISH.
-      "year": "String", // Release year of the movie.
-      "relation_type": "String" // CRITICAL: Must be 'Adaptation' ONLY if the movie is officially based on this specific book (verify author credit). If a movie shares the same title but has a different plot (e.g., 'The Lemon Tree' book vs 'Lemon Tree' movie), OR if no direct adaptation exists, choose a movie with similar themes and set this to 'Vibe Match'."
+      "has_movie": Boolean,
+      "title": "String (ENGLISH)",
+      "year": "String",
+      "relation_type": "Adaptation" or "Vibe Match"
   }
 }
 
-### CONSTRAINTS
-- Ensure the JSON is valid and parsable.
-- The 'spotify_keyword' and 'movie_suggestion.title' must be in English.
-- The 'description' and 'tags' must be in TURKISH.
-- **ANTI-HALLUCINATION RULE:** Do not assume a movie is an adaptation just because it shares the book's title. Verify the plot and credits. If the book is non-fiction and the movie is fiction (or vice versa) with different stories, it is NOT an adaptation. Use 'Vibe Match' instead.
-
-### EXAMPLE OUTPUT
-{
-  "description": "Çöl gezegeni Arrakis'te geçen, politika, din ve ekolojinin iç içe geçtiği epik bir bilimkurgu şaheseri. Genç Paul Atreides'in, evrenin en değerli kaynağı olan 'baharat' uğruna verilen savaşta liderliğe yükselişini ve kaderiyle yüzleşmesini konu alır.",
-  "tags": ["bilimkurgu", "politika", "ekoloji", "din", "iktidar mücadelesi", "mesih", "uzay operası"],
-  "page_count": 712,
-  "spotify_keyword": "middle eastern desert ambient sci-fi soundtrack",
-  "primary_color": "#C2B280",
-  "mood": "Epik",
+### EXAMPLES
+Input: "Fahrenheit 451", "Ray Bradbury"
+Response: {
+  "description": "Kitapların yakıldığı, düşünmenin suç sayıldığı distopik bir geleceği konu alır. İtfaiyeci Guy Montag'ın yavaş yavaş sistemin korkunçluğunu fark etmesi ve direnişe geçmesini anlatır.",
+  "tags": ["distopya", "sansür", "bilimkurgu", "klasik", "sosyal eleştiri"],
+  "page_count": 256,
+  "spotify_keyword": "melancholic electronic dystopian ambient",
+  "primary_color": "#E25822",
+  "mood": "Gerilimli",
   "movie_suggestion": {
       "has_movie": true,
-      "title": "Dune: Part One",
-      "year": "2021",
+      "title": "Fahrenheit 451",
+      "year": "1966",
       "relation_type": "Adaptation"
   }
 }
 
-### SELF-CORRECTION & QUALITY CHECK
-Before generating the final JSON, perform a silent internal review:
-1. **Relevance Check:** Is the 'description' strictly about the specific book provided in INPUT DATA? If you don't know the book, do not hallunicate a plot; instead, provide a generic description of the genre.
-2. **Language Check:** Ensure 'description', 'tags', and 'mood' are in TURKISH.
-3. **Format Check:** Ensure the output is a valid, parseable JSON object without Markdown formatting.
+### SELF-CORRECTION LOOP
+- Is this the correct author for this book?
+- Did I invent the plot?
+- Are 'description', 'tags', and 'mood' in Turkish?
                 `;
 
                 // --- Pollinations AI Request ---

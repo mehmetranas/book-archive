@@ -45,8 +45,9 @@ export const useGoogleBooks = (query: string) => {
                 {
                     params: {
                         q: debouncedQuery,
-                        maxResults: 20,
+                        maxResults: 40,
                         printType: 'books',
+                        langRestrict: i18n.language,
                     },
                 }
             );

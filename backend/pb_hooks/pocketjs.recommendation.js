@@ -60,44 +60,66 @@ routerAdd("POST", "/api/ai/recommend-books", (c) => {
     // -------------------------------------------------------------------------
     const prompt = `
         ### ROLE
-        You are a Literary Concierge and Expert Librarian AI. Your goal is to recommend books based on a user's free-text request.
+        You are a highly-trained Literary Librarian and Senior Editor with a vast knowledge of published literature worldwide. Your task is to provide 3 REAL book recommendations based on user sentiment, request, or vague descriptions.
 
         ### INPUT
         User Request: "${userQuery}"
 
+        ### HALLUCINATION PREVENTION (ZERO TOLERANCE)
+        1. **REALITY CHECK**: You MUST NOT provide titles of books that do not exist. Do not "combine" titles or authors.
+        2. **TRANSLATION RULE**: 
+           - If a book has an OFFICIAL Turkish translation/edition, use the Turkish title.
+           - If a book has NOT been officially translated to Turkish, keep the 'title' in its Original Language (usually English). 
+           - NEVER invent or guess a Turkish title for a book that hasn't been published in Turkey.
+        3. **ISBN ACCURACY**: Only provide an ISBN-13 if you are 100% sure. If not, use null.
+        4. **UNICITY**: Recommend exactly 3 distinct books.
+
+        ### EXAMPLES OF HIGH-QUALITY RECOMMENDATIONS
+        User: "Sürükleyici bir polisiye ama içinde aşk olmasın"
+        Response: {
+          "recommendations": [
+            {
+              "title": "On Küçük Zenci", // (Official Turkish Title for 'And Then There Were None')
+              "author": "Agatha Christie",
+              ...
+            },
+            {
+              "title": "Project Hail Mary", // (Keeping original if it's the best fit and no TR title available)
+              "author": "Andy Weir",
+              ...
+            }
+          ]
+        }
+
         ### CONSTRAINTS
-        1. **OFF-TOPIC CHECK**: If the user's request is NOT about finding a book (e.g., asking about coding, politics, recipes, general chat, or movies without a book context), return a JSON with "error": "OFF_TOPIC". Do NOT recommend anything.
-        2. **STRICT JSON**: Output must be a SINGLE valid JSON object. No markdown, no preambles.
-        3. **LANGUAGE**: The 'reason' and 'summary' fields MUST be in TURKISH.
-        4. **QUANTITY**: Recommend exactly 3 books.
+        1. **TOPIC VERIFICATION**: Use a strict filter. If the request is generic chat (e.g. "hi", "how are you") or completely unrelated to books/reading, return the OFF_TOPIC JSON.
+        2. **STRICT JSON**: Output must be a pure JSON object. No markdown wrappers.
+        3. **LANGUAGE**: 'reason' and 'summary' must ALWAYS be in TURKISH, even if the book title is in English. Explain why the English book fits the Turkish request.
+        4. **METADATA**: Authors should be in their most common international form.
 
         ### JSON STRUCTURE (Success)
         {
-        "recommendations": [
+          "recommendations": [
             {
-            "title": "Exact Book Title",
-            "author": "Author Name",
-            "isbn": "9781234567890", // Best guess ISBN-13 if known, else null
-            "reason": "Expert explanation of why this fits the request (in Turkish).",
-            "summary": "Short plot summary (in Turkish)."
+              "title": "String",
+              "author": "String",
+              "isbn": "String_or_null",
+              "reason": "String (Turkish)",
+              "summary": "String (Turkish)"
             }
-        ]
+          ]
         }
 
         ### JSON STRUCTURE (Off-Topic)
         {
-        "error": "OFF_TOPIC",
-        "message": "Üzgünüm, sadece kitap önerileri konusunda yardımcı olabilirim."
+          "error": "OFF_TOPIC",
+          "message": "Üzgünüm, şu an sadece kitap önerileri konusunda yardımcı olabilirim. Lütfen okuma listenize eklemek istediğiniz bir tarz veya konu belirtin."
         }
 
-        ### FINAL VERIFICATION & SANITY CHECK (CRITICAL)
-        Before outputting the final JSON, perform this internal "Self-Correction" loop:
-        1. **Analyze Intent:** Did the user specifically ask for a *book*, *reading material*, *novel*, or *literature*?
-          - If the user asked for a "movie", "song", or "code snippet", this is OFF_TOPIC.
-        2. **Verify Output:** Are the items you selected actually published books? Ensure they are not movies or video games with the same name.
-        3. **Decision Gate:**
-          - IF the input is even slightly irrelevant to reading/books -> Force the "OFF_TOPIC" JSON.
-          - ONLY IF the input is confirmed to be a book request -> Output the "recommendations" JSON. 
+        ### FINAL VERIFICATION LOOP
+        1. Did I invent any of these books? (If yes, replace them)
+        2. Is the response valid JSON?
+        3. Is the language correct?
     `;
 
     // -------------------------------------------------------------------------
@@ -124,17 +146,27 @@ routerAdd("POST", "/api/ai/recommend-books", (c) => {
     let jsonResponse;
 
     try {
-        // Attempt 1: Gemini
-        try {
-            res = fetchWithModel("gemini-search");
-            if (res.statusCode !== 200) throw new Error("Status " + res.statusCode);
-        } catch (primaryError) {
-            console.log("[Recommend] Gemini failed, trying fallback:", primaryError.message);
-            // Attempt 2: OpenAI Fast
-            res = fetchWithModel("openai-fast");
-            if (res.statusCode !== 200) {
-                throw new Error("AI Provider Error: " + res.raw);
+        const models = ["openai", "gemini-search", "openai-fast"];
+        let lastError = null;
+
+        for (const model of models) {
+            try {
+                // console.log(`[Recommend] Trying model: ${model}...`);
+                res = fetchWithModel(model);
+                if (res.statusCode === 200) {
+                    // console.log(`[Recommend] Success with ${model}`);
+                    break;
+                }
+                throw new Error("Status " + res.statusCode);
+            } catch (e) {
+                console.log(`[Recommend] Model ${model} failed: ${e.message}`);
+                lastError = e;
+                res = null;
             }
+        }
+
+        if (!res || res.statusCode !== 200) {
+            throw new Error("All AI providers failed. Last Error: " + (lastError ? lastError.message : "None"));
         }
 
         // Parsing

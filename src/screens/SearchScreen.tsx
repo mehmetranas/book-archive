@@ -56,8 +56,11 @@ export const SearchScreen = () => {
         if (route.params?.scannedIsbn) {
             setQuery(`isbn:${route.params.scannedIsbn}`);
             navigation.setParams({ scannedIsbn: undefined });
+        } else if (route.params?.query) {
+            setQuery(route.params.query);
+            navigation.setParams({ query: undefined });
         }
-    }, [route.params?.scannedIsbn]);
+    }, [route.params?.scannedIsbn, route.params?.query]);
 
     // Reset mutation state (green checkmark) when leaving the screen
     useFocusEffect(
@@ -155,9 +158,8 @@ export const SearchScreen = () => {
     });
 
     const handleAISelect = (book: any) => {
-        // Use ISBN if available for better accuracy, else Title + Author
-        // Note: We do NOT clear setAiResults here, so user can open modal again to see same suggestions
-        const searchQuery = book.isbn ? `isbn:${book.isbn}` : `${book.title} ${book.author}`;
+        // Use Title + Author for broader results, as AI ISBNs can sometimes be specific to rare editions or hallucinated
+        const searchQuery = `${book.title} ${book.author}`;
         setQuery(searchQuery);
         setIsAIModalVisible(false);
     };
