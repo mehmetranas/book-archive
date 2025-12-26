@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { pb } from '../../services/pocketbase';
 import { useMovieDetails } from '../../hooks/useTMDB';
-import { addMovieToLibrary } from '../../services/tmdb';
+import { addMovieToLibrary, getCollectionDetailsProxy } from '../../services/tmdb';
 import { Movie } from './MovieLibraryScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -361,11 +361,19 @@ export const MovieDetailScreen = () => {
     const activeMediaType = isTv ? 'tv' : 'movie';
     const { data: tmdbMovie, isLoading: isTmdbLoading, error: tmdbError, refetch: refetchTmdb } = useMovieDetails(activeTmdbId || 0, activeMediaType);
 
+    // 3. Fetch Collection Data if belongs_to_collection exists
+    const collectionId = tmdbMovie?.belongs_to_collection?.id;
+    const { data: collection, refetch: refetchCollection } = useQuery({
+        queryKey: ['collection', collectionId],
+        queryFn: () => collectionId ? getCollectionDetailsProxy(collectionId) : null,
+        enabled: !!collectionId,
+    });
+
     const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
-        await Promise.all([refetchLocal(), refetchTmdb()]);
+        await Promise.all([refetchLocal(), refetchTmdb(), collectionId ? refetchCollection() : Promise.resolve()]);
         setRefreshing(false);
-    }, [refetchLocal, refetchTmdb]);
+    }, [refetchLocal, refetchTmdb, refetchCollection, collectionId]);
 
     // Add Movie Mutation
     const addMutation = useMutation({
@@ -982,6 +990,52 @@ export const MovieDetailScreen = () => {
                                         <Text className="text-[10px] text-gray-500 dark:text-gray-400" numberOfLines={1}>{c.character}</Text>
                                     </TouchableOpacity>
                                 ))}
+                            </ScrollView>
+                        </View>
+                    )}
+
+                    {/* Collection Movies */}
+                    {collection?.parts && collection.parts.length > 1 && (
+                        <View className="mb-8">
+                            <Text className="text-sm font-bold text-gray-900 dark:text-white mb-4 opacity-70 uppercase">
+                                {collection.name} SERİSİ
+                            </Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                {collection.parts
+                                    .filter((m: any) => m.id !== activeTmdbId)
+                                    .sort((a: any, b: any) => new Date(a.release_date || 0).getTime() - new Date(b.release_date || 0).getTime())
+                                    .map((m: any) => (
+                                        <TouchableOpacity
+                                            key={m.id}
+                                            className="mr-4 w-28"
+                                            onPress={() => navigation.push('MovieDetail', { tmdbId: m.id, mediaType: 'movie' })}
+                                        >
+                                            <View className="w-28 h-40 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden mb-2 shadow-sm">
+                                                {m.poster_path ? (
+                                                    <Image
+                                                        source={{ uri: `https://image.tmdb.org/t/p/w200${m.poster_path}` }}
+                                                        className="w-full h-full"
+                                                        resizeMode="cover"
+                                                    />
+                                                ) : (
+                                                    <View className="flex-1 items-center justify-center">
+                                                        <Icon name="movie" size={32} color="#9CA3AF" />
+                                                    </View>
+                                                )}
+                                            </View>
+                                            <Text className="text-xs font-semibold text-gray-900 dark:text-white" numberOfLines={2}>{m.title}</Text>
+                                            <View className="flex-row items-center mt-1">
+                                                <Text className="text-[10px] text-gray-500 font-medium">{m.release_date?.split('-')[0]}</Text>
+                                                {m.vote_average > 0 && (
+                                                    <>
+                                                        <View className="w-1 h-1 rounded-full bg-gray-300 mx-1.5" />
+                                                        <Icon name="star" size={10} color="#F59E0B" />
+                                                        <Text className="text-[10px] text-gray-500 ml-1">{m.vote_average.toFixed(1)}</Text>
+                                                    </>
+                                                )}
+                                            </View>
+                                        </TouchableOpacity>
+                                    ))}
                             </ScrollView>
                         </View>
                     )}

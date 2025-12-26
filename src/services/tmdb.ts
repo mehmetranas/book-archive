@@ -46,6 +46,12 @@ export interface TMDBDetailResponse extends Movie {
         instagram_id?: string;
         twitter_id?: string;
     };
+    belongs_to_collection?: {
+        id: number;
+        name: string;
+        poster_path: string | null;
+        backdrop_path: string | null;
+    };
     credits: {
         cast: {
             id: number;
