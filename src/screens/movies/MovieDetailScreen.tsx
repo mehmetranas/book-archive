@@ -912,7 +912,14 @@ export const MovieDetailScreen = () => {
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                                 {/* Director */}
                                 {tmdbMovie?.credits?.crew?.filter(c => c.job === 'Director').map((director) => (
-                                    <View key={`director-${director.id}`} className="mr-4 w-24">
+                                    <TouchableOpacity
+                                        key={`director-${director.id}`}
+                                        className="mr-4 w-24"
+                                        onPress={() => navigation.navigate('DirectorMovies', {
+                                            directorId: director.id,
+                                            directorName: director.name
+                                        })}
+                                    >
                                         <View className="w-24 h-36 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden mb-2 border-2 border-blue-100 dark:border-blue-900">
                                             {director.profile_path ? (
                                                 <Image
@@ -928,7 +935,7 @@ export const MovieDetailScreen = () => {
                                         </View>
                                         <Text className="text-xs font-semibold text-gray-900 dark:text-white" numberOfLines={1}>{director.name}</Text>
                                         <Text className="text-[10px] text-blue-500 font-bold" numberOfLines={1}>{t('library.directorName', 'Yönetmen')}</Text>
-                                    </View>
+                                    </TouchableOpacity>
                                 ))}
 
                                 {/* Cast */}
