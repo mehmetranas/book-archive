@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert, StatusBar, Dimensions, Animated, Linking, Modal, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert, StatusBar, Dimensions, Animated, Linking, Modal, RefreshControl, Pressable } from 'react-native';
 import Toast from 'react-native-toast-message';
 import YoutubePlayer from "react-native-youtube-iframe";
 import { WebView } from 'react-native-webview';
@@ -12,6 +12,7 @@ import { useMovieDetails } from '../../hooks/useTMDB';
 import { addMovieToLibrary, getCollectionDetailsProxy } from '../../services/tmdb';
 import { Movie } from './MovieLibraryScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useColorScheme } from 'nativewind';
 
 interface MovieExtended extends Movie {
     global_values?: string;
@@ -273,7 +274,6 @@ const getGraphHtml = (data: any) => `
 `;
 
 const { width } = Dimensions.get('window');
-import { useColorScheme } from 'nativewind';
 
 // FEATURE FLAG: Character Analysis disabled for now
 const ENABLE_CHARACTER_ANALYSIS = false;
@@ -704,14 +704,14 @@ export const MovieDetailScreen = () => {
                                                 key={i}
                                                 className="px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 shadow-sm"
                                                 style={{
-                                                    backgroundColor: (localMovie.expand.global_values?.mood_color)
+                                                    backgroundColor: (localMovie?.expand?.global_values?.mood_color)
                                                         ? `${localMovie.expand.global_values.mood_color}30`
                                                         : '#F3F4F6'
                                                 }}
                                             >
                                                 <Text
                                                     className="text-xs font-bold"
-                                                    style={{ color: localMovie.expand.global_values?.mood_color || '#1F2937' }}
+                                                    style={{ color: localMovie?.expand?.global_values?.mood_color || '#1F2937' }}
                                                 >
                                                     {vibe}
                                                 </Text>
@@ -741,27 +741,57 @@ export const MovieDetailScreen = () => {
                             ) : null}
                         </View>
                     )}
-                    {/* Watch Providers (TR) */}
-                    {tmdbMovie?.['watch/providers']?.results?.TR && (
-                        <View className="mb-6">
-                            {/* Streaming */}
-                            {tmdbMovie['watch/providers'].results.TR.flatrate && (
-                                <View className="mb-3">
-                                    <Text className="text-xs font-bold text-gray-400 mb-2 uppercase">Yayınlanan Platformlar</Text>
-                                    <View className="flex-row flex-wrap gap-2">
-                                        {tmdbMovie['watch/providers'].results.TR.flatrate.map((p, index) => (
-                                            <View key={index} className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-                                                <Image
-                                                    source={{ uri: `https://image.tmdb.org/t/p/original${p.logo_path}` }}
-                                                    className="w-full h-full"
-                                                />
-                                            </View>
-                                        ))}
-                                    </View>
+                    {/* Watch Providers (TR) - Ultra Minimalist */}
+                    <View className="mb-8 px-1 flex-row items-start">
+                        <View className="mt-1 mr-4">
+                            <Icon name="play-box-multiple-outline" size={22} color="#9CA3AF" />
+                        </View>
+
+                        <View className="flex-1">
+                            {tmdbMovie?.['watch/providers']?.results?.TR ? (
+                                <View className="gap-y-3">
+                                    {/* Streaming */}
+                                    {tmdbMovie['watch/providers'].results.TR.flatrate && (
+                                        <View className="flex-row flex-wrap">
+                                            {tmdbMovie['watch/providers'].results.TR.flatrate.map((p, index) => (
+                                                <Pressable
+                                                    key={index}
+                                                    onPress={() => Linking.openURL(tmdbMovie['watch/providers']?.results?.TR?.link || '')}
+                                                    className="w-10 h-10 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800 bg-white mr-2 mb-1 shadow-sm"
+                                                >
+                                                    <Image source={{ uri: `https://image.tmdb.org/t/p/w200${p.logo_path}` }} className="w-full h-full" />
+                                                </Pressable>
+                                            ))}
+                                        </View>
+                                    )}
+
+                                    {/* Rent & Buy (Grouped or separated with subtle spacing) */}
+                                    {(tmdbMovie['watch/providers'].results.TR.rent || tmdbMovie['watch/providers'].results.TR.buy) && (
+                                        <View className="flex-row flex-wrap border-t border-gray-100 dark:border-gray-800 pt-2 opacity-80">
+                                            {/* Deduplicate Rent/Buy for even more minimalism if needed, or just show them */}
+                                            {[...(tmdbMovie['watch/providers'].results.TR.rent || []), ...(tmdbMovie['watch/providers'].results.TR.buy || [])]
+                                                // Unique by provider_id to avoid duplicates if same for rent/buy
+                                                .filter((v, i, a) => a.findIndex(t => t.provider_id === v.provider_id) === i)
+                                                .map((p, index) => (
+                                                    <Pressable
+                                                        key={index}
+                                                        onPress={() => Linking.openURL(tmdbMovie['watch/providers']?.results?.TR?.link || '')}
+                                                        className="w-9 h-9 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800 bg-white mr-2 mb-1"
+                                                    >
+                                                        <Image source={{ uri: `https://image.tmdb.org/t/p/w200${p.logo_path}` }} className="w-full h-full" />
+                                                    </Pressable>
+                                                ))
+                                            }
+                                        </View>
+                                    )}
                                 </View>
+                            ) : (
+                                <Text className="text-gray-400 text-[10px] italic pt-1">
+                                    {t('detail.noProviders', 'Dijital platformda yok.')}
+                                </Text>
                             )}
                         </View>
-                    )}
+                    </View>
 
                     {/* Genres */}
                     {tmdbMovie?.genres && tmdbMovie.genres.length > 0 && (
