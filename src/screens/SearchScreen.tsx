@@ -5,6 +5,7 @@ import { FlashList } from '@shopify/flash-list';
 import axios from 'axios';
 import { useGoogleBooks, GoogleBookItem } from '../hooks/useGoogleBooks';
 import { pb } from '../services/pocketbase';
+import { findStoryTell } from '../services/storytell';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 
@@ -34,23 +35,6 @@ export const SearchScreen = () => {
 
     // Get user from AuthContext
     const { user } = useAuth();
-
-    // Refresh user data (credits) when screen comes into focus
-    useFocusEffect(
-        useCallback(() => {
-            if (user?.id) {
-                pb.collection('users').getOne(user.id)
-                    .then((updatedRecord) => {
-                        // Update the auth store with fresh data. 
-                        // This will trigger the onChange listener in AuthContext and update 'user' state everywhere.
-                        if (pb.authStore.isValid && pb.authStore.token) {
-                            pb.authStore.save(pb.authStore.token, updatedRecord);
-                        }
-                    })
-                    .catch((err) => console.log("Failed to refresh user credits:", err));
-            }
-        }, [user?.id])
-    );
 
     useEffect(() => {
         if (route.params?.scannedIsbn) {
@@ -100,7 +84,20 @@ export const SearchScreen = () => {
                 enrichment_status: (pb.authStore.model?.settings?.auto_ai_enrichment) ? 'pending' : 'none',
             };
 
-            return await pb.collection('books').create(data);
+            const createdBook = await pb.collection('books').create(data);
+
+            const storytellRecord = await findStoryTell({
+                isbn: isbn || undefined,
+                google_books_id: book.id,
+                title: data.title,
+            });
+            if (storytellRecord) {
+                await pb.collection('books').update(createdBook.id, {
+                    storytell: { id: storytellRecord.id, url: storytellRecord.url },
+                });
+            }
+
+            return createdBook;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['books'] });
@@ -140,20 +137,11 @@ export const SearchScreen = () => {
                 setAiResults(data.recommendations);
                 setAiError(null);
 
-                // Update local user credits
-                if (data.remainingCredits !== undefined && pb.authStore.model) {
-                    const updatedModel = { ...pb.authStore.model, credits: data.remainingCredits };
-                    pb.authStore.save(pb.authStore.token, updatedModel);
-                }
             }
         },
         onError: (err: any) => {
             console.log("AI Error:", err);
-            if (err?.status === 402 || err?.data?.error === "INSUFFICIENT_CREDITS") {
-                setAiError("Yetersiz bakiye. Lütfen kredi yükleyin.");
-            } else {
-                setAiError(t('common.error'));
-            }
+            setAiError(t('common.error'));
         }
     });
 
@@ -170,46 +158,6 @@ export const SearchScreen = () => {
         setAiError(null);
     };
 
-    // --- Mock Purchase Function for now ---
-    const handleBuyCredits = async () => {
-        try {
-            if (!user) return;
-
-            Alert.alert(
-                "Test Mağazası",
-                "Bu bir test sürümüdür. Ücretsiz kredi yüklemek ister misiniz?",
-                [
-                    { text: "İptal", style: "cancel" },
-                    {
-                        text: "10 Kredi Yükle (Ücretsiz)",
-                        onPress: async () => {
-                            try {
-                                const res = await pb.send("/api/mock/buy-credits", {
-                                    method: "POST",
-                                    body: { amount: 10 }
-                                });
-
-                                if (res.success) {
-                                    Alert.alert("Başarılı", res.message);
-                                    // Update local user state immediately
-                                    if (pb.authStore.model) {
-                                        const updatedModel = { ...pb.authStore.model, credits: res.credits };
-                                        pb.authStore.save(pb.authStore.token, updatedModel);
-                                        // Force UI update if needed (AuthContext usually listens to onChange)
-                                    }
-                                }
-                            } catch (err: any) {
-                                Alert.alert("Hata", "Kredi yüklenemedi: " + err.message);
-                            }
-                        }
-                    }
-                ]
-            );
-        } catch (e) {
-            console.error(e);
-        }
-    };
-
     const addManualBookMutation = useMutation({
         mutationFn: async () => {
             const data = {
@@ -221,7 +169,16 @@ export const SearchScreen = () => {
                 user: pb.authStore.record?.id,
                 enrichment_status: (pb.authStore.model?.settings?.auto_ai_enrichment) ? 'pending' : 'none',
             };
-            return await pb.collection('books').create(data);
+            const createdBook = await pb.collection('books').create(data);
+
+            const storytellRecord = await findStoryTell({ title: data.title });
+            if (storytellRecord) {
+                await pb.collection('books').update(createdBook.id, {
+                    storytell: { id: storytellRecord.id, url: storytellRecord.url },
+                });
+            }
+
+            return createdBook;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['books'] });
@@ -466,16 +423,6 @@ export const SearchScreen = () => {
                     </View>
 
                     <View className="p-4 flex-1">
-                        {/* Credits Banner */}
-                        <View className="flex-row items-center justify-between bg-purple-50 dark:bg-purple-900/20 p-3 rounded-xl mb-4">
-                            <View className="flex-row items-center">
-                                <Icon name="bitcoin" size={20} color="#9333EA" className="mr-2" />
-                                <Text className="text-purple-900 dark:text-purple-100 font-bold">
-                                    Krediniz: {user?.credits ?? 0}
-                                </Text>
-                            </View>
-                        </View>
-
                         {!aiResults ? (
                             <>
                                 <Text className="text-gray-600 dark:text-gray-300 mb-2">
@@ -501,28 +448,18 @@ export const SearchScreen = () => {
 
                                 <TouchableOpacity
                                     onPress={() => aiRecommendMutation.mutate(aiQuery)}
-                                    disabled={aiRecommendMutation.isPending || aiQuery.length < 5 || (user?.credits ?? 0) < 1}
-                                    className={`w-full py-4 rounded-xl flex-row items-center justify-center shadow-md ${(user?.credits ?? 0) < 1
-                                        ? 'bg-gray-400 opacity-50'
-                                        : aiRecommendMutation.isPending || aiQuery.length < 5
-                                            ? 'bg-purple-400'
-                                            : 'bg-purple-600'
-                                        }`}
+                                    disabled={aiRecommendMutation.isPending || aiQuery.length < 5}
+                                    className={`w-full py-4 rounded-xl flex-row items-center justify-center shadow-md ${aiRecommendMutation.isPending || aiQuery.length < 5 ? 'bg-purple-400' : 'bg-purple-600'}`}
                                 >
                                     {aiRecommendMutation.isPending ? (
                                         <>
                                             <ActivityIndicator size="small" color="white" className="mr-2" />
                                             <Text className="text-white font-bold">Düşünülüyor...</Text>
                                         </>
-                                    ) : (user?.credits ?? 0) < 1 ? (
-                                        <>
-                                            <Icon name="lock" size={20} color="white" className="mr-2" />
-                                            <Text className="text-white font-bold">Yetersiz Kredi</Text>
-                                        </>
                                     ) : (
                                         <>
                                             <Icon name="creation" size={20} color="white" className="mr-2" />
-                                            <Text className="text-white font-bold">Önerileri Bul (1 Kredi)</Text>
+                                            <Text className="text-white font-bold">Önerileri Bul</Text>
                                         </>
                                     )}
                                 </TouchableOpacity>

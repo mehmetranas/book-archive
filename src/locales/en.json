@@ -83,7 +83,9 @@
         "changeStatus": "Change Status",
         "regenerateAI": "Regenerate Content",
         "aiNotes": "Analysis Notes",
-        "newDraft": "New Quote"
+        "newDraft": "New Quote",
+        "storytellAvailable": "Audiobook Available",
+        "storytellListen": "Listen on Storytell"
     },
     "aiStatus": {
         "pending": "Pending",

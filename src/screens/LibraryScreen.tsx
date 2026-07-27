@@ -6,6 +6,7 @@ import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { pb } from '../services/pocketbase';
+import { findStoryTell } from '../services/storytell';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
 import { AIStatusBadge } from '../components/AIStatusBadge';
@@ -56,6 +57,7 @@ export interface Book {
         year?: string;
         relation_type?: string;
     };
+    storytell?: { id: string; url: string } | null;
 }
 
 export const LibraryScreen = () => {
@@ -173,7 +175,16 @@ export const LibraryScreen = () => {
                 language_code: i18n.language,
                 user: pb.authStore.record?.id,
             };
-            return await pb.collection('books').create(data);
+            const createdBook = await pb.collection('books').create(data);
+
+            const storytellRecord = await findStoryTell({ title: data.title });
+            if (storytellRecord) {
+                await pb.collection('books').update(createdBook.id, {
+                    storytell: { id: storytellRecord.id, url: storytellRecord.url },
+                });
+            }
+
+            return createdBook;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['books'] });
@@ -321,6 +332,13 @@ export const LibraryScreen = () => {
                         {item.character_analysis_status === 'completed' && (
                             <View className="bg-indigo-100 dark:bg-indigo-900 px-1.5 py-0.5 rounded">
                                 <Icon name="account-multiple" size={12} color={isDark ? "#C7D2FE" : "#4F46E5"} />
+                            </View>
+                        )}
+
+                        {/* Storytell Badge */}
+                        {item.storytell?.url && (
+                            <View className="bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded flex-row items-center">
+                                <Icon name="headphones" size={12} color={isDark ? "#FDE68A" : "#92400E"} />
                             </View>
                         )}
                     </View>

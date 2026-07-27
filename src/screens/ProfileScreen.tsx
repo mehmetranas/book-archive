@@ -80,22 +80,6 @@ export const ProfileScreen = () => {
                         {user?.name || user?.username || t('profile.user', 'Kullanıcı')}
                     </Text>
 
-                    {/* Credits & Store Button */}
-                    <View className="flex-row items-center mt-2 mb-2 bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 rounded-full border border-indigo-100 dark:border-indigo-800">
-                        <Icon name="diamond-stone" size={16} color="#6366F1" className="mr-2" />
-                        <Text className="text-indigo-700 dark:text-indigo-300 font-bold mr-3">
-                            {user?.credits || 0} {t('common.credit', 'Kredi')}
-                        </Text>
-                        <TouchableOpacity
-                            onPress={() => (navigation as any).navigate('Store')}
-                            className="bg-indigo-600 px-3 py-1 rounded-full items-center justify-center"
-                        >
-                            <Text className="text-white text-xs font-bold">
-                                + {t('store.add', 'Yükle')}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-
                     <Text className="text-sm text-gray-500 dark:text-gray-400">
                         {t('profile.memberSince', 'Üyelik: 2024')}
                     </Text>

@@ -1,8 +1,8 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useMode } from '../context/ModeContext';
 import { useConfig } from '../context/ConfigContext';
@@ -19,22 +19,6 @@ export const SettingsScreen = () => {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation();
 
-    // Refresh user data (credits) when screen comes into focus
-    useFocusEffect(
-        useCallback(() => {
-            if (user?.id) {
-                pb.collection('users').getOne(user.id)
-                    .then((updatedRecord) => {
-                        // Update the auth store with fresh data. 
-                        // This will trigger the onChange listener in AuthContext and update 'user' state everywhere.
-                        if (pb.authStore.isValid && pb.authStore.token) {
-                            pb.authStore.save(pb.authStore.token, updatedRecord);
-                        }
-                    })
-                    .catch((err) => console.log("Failed to refresh user credits:", err));
-            }
-        }, [user?.id])
-    );
 
     const handleLogout = () => {
         Alert.alert(
@@ -57,10 +41,6 @@ export const SettingsScreen = () => {
     };
 
     // ... (rest of the hooks)
-
-    const handleBuyCredits = () => {
-        (navigation as any).navigate('Store');
-    };
 
     return (
         <ScrollView
@@ -99,28 +79,9 @@ export const SettingsScreen = () => {
                         <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                             {user.name || user.username || 'User'}
                         </Text>
-                        <Text className="text-gray-600 dark:text-gray-400 mb-4">
+                        <Text className="text-gray-600 dark:text-gray-400">
                             {user.email}
                         </Text>
-
-                        {/* Credits Section */}
-                        <View className="border-t border-gray-200 dark:border-gray-700 pt-4 flex-row items-center justify-between">
-                            <View className="flex-row items-center">
-                                <Icon name="bitcoin" size={24} color="#9333EA" className="mr-2" />
-                                <View>
-                                    <Text className="text-gray-900 dark:text-white font-bold text-lg">
-                                        {user.credits ?? 0} Kredi
-                                    </Text>
-                                    <Text className="text-gray-500 text-xs">AI özellikleri için kullanılır</Text>
-                                </View>
-                            </View>
-                            <TouchableOpacity
-                                onPress={handleBuyCredits}
-                                className="bg-purple-100 dark:bg-purple-900 px-4 py-2 rounded-full"
-                            >
-                                <Text className="text-purple-700 dark:text-purple-300 font-bold">Yükle</Text>
-                            </TouchableOpacity>
-                        </View>
                     </View>
                 )}
 

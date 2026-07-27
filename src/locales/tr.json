@@ -83,7 +83,9 @@
         "changeStatus": "Durumu Değiştir",
         "regenerateAI": "İçeriği Yeniden Oluştur",
         "aiNotes": "Analiz Notları",
-        "newDraft": "Yeni Alıntı"
+        "newDraft": "Yeni Alıntı",
+        "storytellAvailable": "Sesli Kitap Mevcut",
+        "storytellListen": "Storytell'de Dinle"
     },
     "aiStatus": {
         "pending": "Beklemede",
