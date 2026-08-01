@@ -2,14 +2,14 @@
 
 # --- AYARLAR ---
 # --- AYARLAR ---
-# Sunucu adresi (IP ve Kullanıcı)
-SERVER="root@95.217.152.157"
+# Sunucu adresi (~/.ssh/config icindeki "contabo-deploy" host'unu kullanir - passphrase'siz deploy key)
+SERVER="contabo-deploy"
 
-# SSH Key Dosyası
-SSH_KEY="$HOME/.ssh/hetzner_key"
+# SSH Key Dosyası (contabo host'u icin ~/.ssh/config'te tanimli, burada gerek yok)
+SSH_KEY=""
 
-# Sunucudaki pb_hooks klasörünün tam yolu
-REMOTE_PATH="/var/lib/docker/volumes/og0gcww0s8ossck88gcoow44_pocketbase-hooks/_data" 
+# Sunucudaki pb_hooks klasörünün tam yolu (Coolify - book-archive-pocketbase servisi)
+REMOTE_PATH="/var/lib/docker/volumes/kq8aie8spc022bbpv507kdmq_pocketbase-hooks/_data"
 
 # ---------------
 
@@ -34,30 +34,25 @@ else
 fi
 
 FILENAME=$(basename "$LOCAL_FILE")
-EXTENSION="${FILENAME##*.}"
-FILENAME_NO_EXT="${FILENAME%.*}"
 
-# PocketBase hook'ları genelde .pb.js ile biter.
-if [[ "$FILENAME" == *".pb.js" ]]; then
-    REMOTE_FILENAME="$FILENAME"
-else
-    REMOTE_FILENAME="${FILENAME_NO_EXT}.pb.js"
-fi
+# Sunucudaki dosyalar orijinal adiyla (pocketjs.*.js) duruyor, .pb.js'e cevirmiyoruz
+# (cevirirsek ayni hook iki kez -eski ve yeni isimle- yuklenir).
+REMOTE_FILENAME="$FILENAME"
 
 echo "----------------------------------------"
 echo "📂 Local Dosya: $LOCAL_FILE"
 echo "🚀 Hedef: $SERVER:$REMOTE_PATH/$REMOTE_FILENAME"
 echo "----------------------------------------"
 
-# Dosyayı sunucuya kopyala (-i ile key dosyasını belirtiyoruz)
-scp -i "$SSH_KEY" "$LOCAL_FILE" "$SERVER:$REMOTE_PATH/$REMOTE_FILENAME"
+# Dosyayı sunucuya kopyala (key ~/.ssh/config'teki "contabo" host tanımından geliyor)
+scp "$LOCAL_FILE" "$SERVER:$REMOTE_PATH/$REMOTE_FILENAME"
 
 if [ $? -eq 0 ]; then
   echo "✅ Yükleme Başarılı!"
   
-  # İsteğe bağlı: Değişikliğin hemen algılanması için gerekirse restart atılabilir
-  # ama PB hook değişikliklerini (dosya yeni ise) bazen otomatik, bazen restart ile görür.
-  # ssh "$SERVER" "systemctl restart pocketbase"
+  # PocketBase pb_hooks degisikliklerini hooksWatch ile otomatik algilayip restart eder.
+  # Otomatik algilanmazsa manuel restart:
+  # ssh "$SERVER" "docker restart pocketbase-kq8aie8spc022bbpv507kdmq"
 else
   echo "❌ Yükleme Başarısız oldu."
 fi

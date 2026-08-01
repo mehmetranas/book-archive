@@ -40,9 +40,9 @@ routerAdd("POST", "/api/ai/quote", (c) => {
         return c.json(401, { error: "Authentication required" });
     }
 
-    const pollinationKey = $os.getenv("POLLINATION_KEY");
-    if (!pollinationKey) {
-        return c.json(500, { error: "Server misconfiguration: POLLINATION_KEY missing" });
+    const openRouterKey = $os.getenv("OPENROUTER_API_KEY");
+    if (!openRouterKey) {
+        return c.json(500, { error: "Server misconfiguration: OPENROUTER_API_KEY missing" });
     }
 
     // -------------------------------------------------------------------------
@@ -151,16 +151,17 @@ routerAdd("POST", "/api/ai/quote", (c) => {
     `;
 
     const fetchWithModel = (model) => {
-        const encodedPrompt = encodeURIComponent(promptText.trim());
-        const url = `https://text.pollinations.ai/${encodedPrompt}?model=${model}&seed=${seed}&json=true`;
-
         return $http.send({
-            url: url,
-            method: "GET",
+            url: "https://openrouter.ai/api/v1/chat/completions",
+            method: "POST",
             headers: {
-                "Authorization": `Bearer ${pollinationKey}`,
+                "Authorization": `Bearer ${openRouterKey}`,
                 "Content-Type": "application/json"
             },
+            body: JSON.stringify({
+                model: model,
+                messages: [{ role: "user", content: promptText.trim() }]
+            }),
             timeout: 60
         });
     };
@@ -171,18 +172,19 @@ routerAdd("POST", "/api/ai/quote", (c) => {
         let res;
         // Try Gemini First
         try {
-            res = fetchWithModel("gemini-search");
+            res = fetchWithModel("google/gemini-2.0-flash-001");
             if (res.statusCode !== 200) throw new Error("Status " + res.statusCode);
         } catch (primaryErr) {
-            // console.log("[Quote] Fallback to openai-fast");
-            res = fetchWithModel("openai-fast");
+            // console.log("[Quote] Fallback to gpt-4o-mini");
+            res = fetchWithModel("openai/gpt-4o-mini");
         }
 
         if (res.statusCode !== 200) {
             throw new Error("AI Provider Error: " + res.raw);
         }
 
-        let rawText = res.raw.trim();
+        const envelope = JSON.parse(res.raw);
+        let rawText = ((envelope.choices && envelope.choices[0] && envelope.choices[0].message && envelope.choices[0].message.content) || "").trim();
         rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
 
         const firstBrace = rawText.indexOf('{');

@@ -23,9 +23,9 @@ cronAdd("image_gen_job", "* * * * *", () => {
         return bytes;
     }
 
-    const apiKey = $os.getenv("GEMINI_IMAGE_KEY");
-    if (!apiKey) {
-        // console.log("[ImageJob] SKIP: GEMINI_KEY eksik");
+    const openRouterKey = $os.getenv("OPENROUTER_API_KEY");
+    if (!openRouterKey) {
+        // console.log("[ImageJob] SKIP: OPENROUTER_API_KEY eksik");
         return;
     }
 
@@ -78,20 +78,17 @@ Overall Style: The image should be a high-quality, cozy photographic "flat lay" 
 
 CREATE THE IMAGE FOR THE BOOK: ${bookTitle}
 `;
-                // --- API ÇAĞRISI ---
-                // Gemini 3 Pro Image Preview modelini kullanıyoruz (Test edilen model)
-                const modelUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=" + apiKey;
-
-                // API isteği gönderiliyor
+                // --- API ÇAĞRISI (OpenRouter - Flux) ---
                 const imageRes = $http.send({
-                    url: modelUrl,
+                    url: "https://openrouter.ai/api/v1/images",
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Authorization": `Bearer ${openRouterKey}`,
+                        "Content-Type": "application/json"
+                    },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: masterPrompt }] }],
-                        generationConfig: {
-                            responseModalities: ["IMAGE"]
-                        }
+                        model: "black-forest-labs/flux.2-klein-4b",
+                        prompt: masterPrompt
                     }),
                     timeout: 60
                 });
@@ -100,21 +97,9 @@ CREATE THE IMAGE FOR THE BOOK: ${bookTitle}
                     throw new Error(`API Hatasi (${imageRes.statusCode}): ${imageRes.raw}`);
                 }
 
-                // Gelen yanıtı parse et
+                // Gelen yanıtı parse et (OpenRouter Response Parsing)
                 const responseData = imageRes.json;
-
-                // Gemini Response Parsing (Candidates -> Content -> Parts -> InlineData)
-                let base64String = "";
-
-                if (responseData.candidates && responseData.candidates.length > 0) {
-                    const parts = responseData.candidates[0].content.parts;
-                    for (const part of parts) {
-                        if (part.inlineData && part.inlineData.mimeType.startsWith("image")) {
-                            base64String = part.inlineData.data;
-                            break;
-                        }
-                    }
-                }
+                const base64String = responseData.data && responseData.data[0] && responseData.data[0].b64_json;
 
                 if (!base64String) {
                     throw new Error("API yanitinda Base64 veri bulunamadi (Gecersiz Yanit Yapisi).");

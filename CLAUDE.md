@@ -96,9 +96,10 @@ All heavy processing runs in `backend/pb_hooks/`. Key hooks:
 | `pocketjs.credits.js` | Credit system |
 
 ### AI fallback chain (book enrichment)
-1. `gemini-search` (primary)
-2. `openai` (secondary)
-3. `onep-ai-fast` (backup)
+All text-generation hooks call OpenRouter's chat completions API (`https://openrouter.ai/api/v1/chat/completions`) with `OPENROUTER_API_KEY`, trying models in order until one succeeds:
+1. `openai/gpt-4o-mini` (primary)
+2. `google/gemini-2.0-flash-001` (secondary)
+3. `anthropic/claude-3-5-haiku` (backup)
 
 ### Critical PocketBase JSON gotcha
 PocketBase JSVM returns JSON fields as Uint8Arrays. Always use:

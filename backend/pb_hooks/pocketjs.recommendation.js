@@ -22,9 +22,9 @@ routerAdd("POST", "/api/ai/recommend-books", (c) => {
         return c.json(400, { error: "Query too short" });
     }
 
-    const pollinationKey = $os.getenv("POLLINATION_KEY");
-    if (!pollinationKey) {
-        return c.json(500, { error: "Server misconfiguration: POLLINATION_KEY missing" });
+    const openRouterKey = $os.getenv("OPENROUTER_API_KEY");
+    if (!openRouterKey) {
+        return c.json(500, { error: "Server misconfiguration: OPENROUTER_API_KEY missing" });
     }
 
     if (!authData) {
@@ -126,18 +126,17 @@ routerAdd("POST", "/api/ai/recommend-books", (c) => {
     // 4. AI API CALL
     // -------------------------------------------------------------------------
     const fetchWithModel = (model) => {
-        const encodedPrompt = encodeURIComponent(prompt.trim());
-        const seed = Math.floor(Math.random() * 1000000);
-        // Using json=true for better stability with compatible models
-        const url = `https://text.pollinations.ai/${encodedPrompt}?model=${model}&seed=${seed}&json=true`;
-
         return $http.send({
-            url: url,
-            method: "GET",
+            url: "https://openrouter.ai/api/v1/chat/completions",
+            method: "POST",
             headers: {
-                "Authorization": `Bearer ${pollinationKey}`,
+                "Authorization": `Bearer ${openRouterKey}`,
                 "Content-Type": "application/json"
             },
+            body: JSON.stringify({
+                model: model,
+                messages: [{ role: "user", content: prompt.trim() }]
+            }),
             timeout: 60 // 1 minute timeout
         });
     };
@@ -146,7 +145,7 @@ routerAdd("POST", "/api/ai/recommend-books", (c) => {
     let jsonResponse;
 
     try {
-        const models = ["openai", "gemini-search", "openai-fast"];
+        const models = ["openai/gpt-4o-mini", "google/gemini-2.0-flash-001", "anthropic/claude-3-5-haiku"];
         let lastError = null;
 
         for (const model of models) {
@@ -170,7 +169,8 @@ routerAdd("POST", "/api/ai/recommend-books", (c) => {
         }
 
         // Parsing
-        let rawText = res.raw.trim();
+        const envelope = JSON.parse(res.raw);
+        let rawText = ((envelope.choices && envelope.choices[0] && envelope.choices[0].message && envelope.choices[0].message.content) || "").trim();
         // Remove markdown code blocks if present
         rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
 

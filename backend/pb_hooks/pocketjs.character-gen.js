@@ -5,8 +5,8 @@ console.log("--> Character Analysis Worker (TURKISH STRICT) Hazir...");
 // --- CRON JOB ---
 cronAdd("character_analysis_job", "* * * * *", () => {
 
-    // Pollinations AI
-    // const apiKey = $os.getenv("POLLINATION_KEY");
+    // OpenRouter AI
+    // const apiKey = $os.getenv("OPENROUTER_API_KEY");
 
     function bytesToString(bytes) {
         if (!bytes) return "";
@@ -136,25 +136,27 @@ cronAdd("character_analysis_job", "* * * * *", () => {
                     ]
                 `;
 
-                // --- Pollinations AI Request ---
-                const pollinationKey = $os.getenv("POLLINATION_KEY") || "";
-
-                const encodedPrompt = encodeURIComponent(promptText);
-                const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=nova-micro`;
+                // --- OpenRouter AI Request ---
+                const openRouterKey = $os.getenv("OPENROUTER_API_KEY") || "";
 
                 const res = $http.send({
-                    url: url,
-                    method: "GET",
+                    url: "https://openrouter.ai/api/v1/chat/completions",
+                    method: "POST",
                     headers: {
-                        "Authorization": `Bearer ${pollinationKey}`,
+                        "Authorization": `Bearer ${openRouterKey}`,
                         "Content-Type": "application/json"
                     },
+                    body: JSON.stringify({
+                        model: "google/gemini-2.0-flash-001",
+                        messages: [{ role: "user", content: promptText }]
+                    }),
                     timeout: 120
                 });
 
                 if (res.statusCode !== 200) throw new Error("AI Error: " + res.raw);
 
-                let rawText = res.raw;
+                const envelope = JSON.parse(res.raw);
+                let rawText = (envelope.choices && envelope.choices[0] && envelope.choices[0].message && envelope.choices[0].message.content) || "";
                 rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
 
                 const firstBracket = rawText.indexOf('[');

@@ -115,34 +115,26 @@ routerAdd("POST", "/api/ai/quote-image-v2", (c) => {
 
         // Prompt Temizligi
         const safePrompt = imagePrompt.replace(/[^a-zA-Z0-9\s,]/g, "").replace(/\s+/g, " ").trim().substring(0, 300);
-        const encodedPrompt = encodeURIComponent(safePrompt);
-        const seed = Math.floor(Math.random() * 1000000);
 
-        // 4. Resim Üret (Pollinations)
-        const queryParams = `width=768&height=768&model=flux&seed=${seed}&nologo=true`;
-        const imageUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?${queryParams}`;
+        // 4. Resim Üret (OpenRouter - Flux)
+        const openRouterKey = $os.getenv("OPENROUTER_API_KEY");
 
         let res;
         try {
             log(`[AI] Requesting image...`);
 
-            // --- Pollinations AI Auth ---
-            // Key'i environment'tan veya hardcoded olarak al (book-enrichment.js ile aynı mantık)
-            const pollinationKey = $os.getenv("POLLINATION_KEY");
-            const headers = {
-                "User-Agent": "BookVault/1.0"
-            };
-
-            // Eğer key varsa ekle
-            if (pollinationKey) {
-                headers["Authorization"] = `Bearer ${pollinationKey}`;
-            }
-
             res = $http.send({
-                url: imageUrl,
-                method: "GET",
+                url: "https://openrouter.ai/api/v1/images",
+                method: "POST",
                 timeout: 60,
-                headers: headers
+                headers: {
+                    "Authorization": `Bearer ${openRouterKey}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    model: "black-forest-labs/flux.2-klein-4b",
+                    prompt: safePrompt
+                })
             });
             log(`[AI] Response status: ${res.statusCode}`);
         } catch (netEx) {
@@ -154,13 +146,26 @@ routerAdd("POST", "/api/ai/quote-image-v2", (c) => {
             return c.json(500, { error: "Image AI Failed", statusCode: res.statusCode, details: res.raw, debugLogs });
         }
 
-        // 5. Dosyayi Kaydet
-        const tmpImgPath = `/tmp/quote_${book.id}_${contentId}_${new Date().getTime()}.jpg`;
+        // 5. Base64 -> Dosya (Linux 'base64' komutuyla decode, pocketjs.image-gen.js ile ayni yontem)
+        const tmpImgPath = `/tmp/quote_${book.id}_${contentId}_${new Date().getTime()}.png`;
         try {
-            if (!res.raw) throw new Error("Empty response body");
-            $os.writeFile(tmpImgPath, res.raw);
+            const responseData = JSON.parse(res.raw);
+            const b64Image = responseData.data && responseData.data[0] && responseData.data[0].b64_json;
+            if (!b64Image) throw new Error("No b64_json in AI response");
+
+            const tmpBase64Path = `${tmpImgPath}.b64`;
+            $os.writeFile(tmpBase64Path, b64Image);
+
+            const cmd = $os.cmd("sh", "-c", `base64 -d ${tmpBase64Path} > ${tmpImgPath}`);
+            try {
+                cmd.run();
+            } catch (cmdErr) {
+                console.log("CMD Warning:", cmdErr);
+            }
+
+            try { $os.remove(tmpBase64Path); } catch (e) { }
         } catch (e) {
-            throw new Error("WriteFile Error: " + e);
+            return c.json(500, { error: "Image Decode Error", details: e.toString(), debugLogs });
         }
 
         try {

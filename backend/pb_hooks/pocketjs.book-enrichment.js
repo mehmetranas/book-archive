@@ -4,8 +4,8 @@ console.log("--> Book Enrichment Worker (AI Summary) Hazir...");
 
 // --- CRON JOB ---
 cronAdd("book_enrichment_job", "* * * * *", () => {
-    // Pollinations AI (optional key, but good to have)
-    // const apiKey = $os.getenv("POLLINATION_KEY");
+    // OpenRouter AI
+    // const apiKey = $os.getenv("OPENROUTER_API_KEY");
 
     try {
         // 0. TEMIZLIK: 10 dakikadan uzun suredir 'processing' olanlari 'failed' yap (Timeout)
@@ -67,29 +67,36 @@ cronAdd("book_enrichment_job", "* * * * *", () => {
 
         console.log(`[BookEnrich] ${records.length} kitap detaylandiriliyor...`);
 
-        // Fallback Strategy function
+        // Fallback Strategy function (OpenRouter)
         function fetchWithFallback(prompt, key) {
-            const models = ["openai", "gemini-search", "openai-fast"];
+            const models = ["openai/gpt-4o-mini", "google/gemini-2.0-flash-001", "anthropic/claude-3-5-haiku"];
             let lastError = null;
 
             for (const model of models) {
                 try {
                     // console.log(`[BookEnrich] Trying model: ${model}...`);
-                    const url = `https://text.pollinations.ai/${encodeURIComponent(prompt)}?json=true&model=${model}`;
-
                     const res = $http.send({
-                        url: url,
-                        method: "GET",
+                        url: "https://openrouter.ai/api/v1/chat/completions",
+                        method: "POST",
                         headers: {
                             "Authorization": `Bearer ${key}`,
                             "Content-Type": "application/json"
                         },
+                        body: JSON.stringify({
+                            model: model,
+                            messages: [{ role: "user", content: prompt }]
+                        }),
                         timeout: 120
                     });
 
                     if (res.statusCode === 200) {
-                        console.log(`[BookEnrich] Success with model: ${model}`);
-                        return res;
+                        const parsed = JSON.parse(res.raw);
+                        const content = parsed.choices && parsed.choices[0] && parsed.choices[0].message && parsed.choices[0].message.content;
+                        if (content) {
+                            console.log(`[BookEnrich] Success with model: ${model}`);
+                            return { raw: content };
+                        }
+                        throw new Error("Empty content in response");
                     }
                     console.log(`[BookEnrich] Model ${model} failed (Status: ${res.statusCode}). Next...`);
                 } catch (e) {
@@ -190,14 +197,13 @@ Response: {
 - Are 'description', 'tags', and 'mood' in Turkish?
                 `;
 
-                // --- Pollinations AI Request ---
-                const pollinationKey = $os.getenv("POLLINATION_KEY") || "";
-                if (!pollinationKey) throw new Error("POLLINATION_KEY not set");
+                // --- OpenRouter AI Request ---
+                const openRouterKey = $os.getenv("OPENROUTER_API_KEY") || "";
+                if (!openRouterKey) throw new Error("OPENROUTER_API_KEY not set");
 
-                const res = fetchWithFallback(promptText, pollinationKey);
+                const res = fetchWithFallback(promptText, openRouterKey);
 
                 // --- Response Parsing ---
-                // Pollinations returns existing text directly
                 let rawText = res.raw;
 
                 // JSON blok temizligi (bazen markdown veya fazladan text gelebilir)

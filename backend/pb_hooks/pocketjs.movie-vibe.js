@@ -105,25 +105,28 @@ cronAdd("movie_vibe_job", "* * * * *", () => {
                     - Vibes and Summary must be in TURKISH.
                 `;
 
-                // POLLINATIONS AI REQUEST
-                const pollinationKey = $os.getenv("POLLINATION_KEY") || "";
-                const encodedPrompt = encodeURIComponent(promptText);
-                const url = `https://gen.pollinations.ai/text/${encodedPrompt}?model=openai`;
+                // OPENROUTER AI REQUEST
+                const openRouterKey = $os.getenv("OPENROUTER_API_KEY") || "";
 
                 const res = $http.send({
-                    url: url,
-                    method: "GET",
+                    url: "https://openrouter.ai/api/v1/chat/completions",
+                    method: "POST",
                     headers: {
-                        "Authorization": `Bearer ${pollinationKey}`,
+                        "Authorization": `Bearer ${openRouterKey}`,
                         "Content-Type": "application/json"
                     },
+                    body: JSON.stringify({
+                        model: "openai/gpt-4o-mini",
+                        messages: [{ role: "user", content: promptText }]
+                    }),
                     timeout: 60
                 });
 
                 if (res.statusCode !== 200) throw new Error("AI Status: " + res.statusCode);
 
                 // PARSE RESPONSE
-                let rawText = res.raw;
+                const envelope = JSON.parse(res.raw);
+                let rawText = (envelope.choices && envelope.choices[0] && envelope.choices[0].message && envelope.choices[0].message.content) || "";
                 rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
                 const firstBrace = rawText.indexOf('{');
                 const lastBrace = rawText.lastIndexOf('}');

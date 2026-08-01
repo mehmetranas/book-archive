@@ -31,7 +31,7 @@ The app runs in two modes (toggled via `ModeContext`):
 *   **Scripting:** PocketBase JS Hooks (running on Goja VM).
 *   **Database:** SQLite (Embedded in PocketBase).
 *   **External APIs Used in Hooks:**
-    *   **OpenAI / Gemini:** For book summarization, vibe checks, quote generation.
+    *   **OpenRouter:** For book summarization, vibe checks, quote generation, and image generation (chat completions + `/api/v1/images`).
     *   **TMDB API:** For fetching movie metadata.
     *   **Google Books API:** For initial book search on the client side.
 
@@ -67,10 +67,10 @@ All backend logic resides in `/backend/pb_hooks/`.
 *   **Process:**
     1.  Finds books with `enrichment_status = 'pending'`.
     2.  Checks User Credits (Deducts dynamically based on `system_settings`).
-    3.  **AI Fallback Strategy:** Uses a robust fallback mechanism to ensure reliability. It attempts to generate metadata using models in the following priority:
-        *   **1. `gemini-search`:** Primary high-quality model.
-        *   **2. `openai`:** Secondary reliable model.
-        *   **3. `onep-ai-fast`:** Faster, lower-latency backup.
+    3.  **AI Fallback Strategy:** Uses a robust fallback mechanism to ensure reliability. Calls OpenRouter's chat completions API (`OPENROUTER_API_KEY`), attempting models in the following priority:
+        *   **1. `openai/gpt-4o-mini`:** Primary high-quality model.
+        *   **2. `google/gemini-2.0-flash-001`:** Secondary reliable model.
+        *   **3. `anthropic/claude-3-5-haiku`:** Faster, lower-latency backup.
     4.  Calls AI (using the fallback chain) to generate Summary, Tags, and structured metadata via `fetchWithFallback`.
     5.  Updates Book record.
 
