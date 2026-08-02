@@ -968,8 +968,9 @@ const MusicSection = ({ keyword }: { keyword?: string }) => {
     }
 
     const playlists = musicData?.playlists || [];
+    const tracks = musicData?.tracks || [];
 
-    if (playlists.length === 0) {
+    if (playlists.length === 0 && tracks.length === 0) {
         return (
             <View className="mx-4 mb-6 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700 border-dashed">
                 <Text className="text-gray-500 dark:text-gray-400 text-xs text-center">"{keyword}" için sonuç bulunamadı.</Text>
@@ -986,37 +987,39 @@ const MusicSection = ({ keyword }: { keyword?: string }) => {
                 </Text>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {playlists.map((playlist) => (
-                    <TouchableOpacity
-                        key={playlist.id}
-                        onPress={() => playlist.link && Linking.openURL(playlist.link)}
-                        className="mr-3 w-28"
-                    >
-                        {playlist.picture_medium ? (
-                            <Image
-                                source={{ uri: playlist.picture_medium }}
-                                className="w-28 h-28 rounded-lg mb-2 bg-gray-200 dark:bg-gray-700"
-                            />
-                        ) : (
-                            <View className="w-28 h-28 rounded-lg mb-2 bg-gray-200 dark:bg-gray-700 items-center justify-center">
-                                <Icon name="music-note" size={32} color="#9CA3AF" />
-                            </View>
-                        )}
-                        <Text className="text-gray-900 dark:text-white font-bold text-xs" numberOfLines={1}>
-                            {playlist.title}
-                        </Text>
-                        <Text className="text-gray-500 dark:text-gray-400 text-[10px]" numberOfLines={1}>
-                            {playlist.user?.name}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
+            {playlists.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {playlists.map((playlist) => (
+                        <TouchableOpacity
+                            key={playlist.id}
+                            onPress={() => playlist.link && Linking.openURL(playlist.link)}
+                            className="mr-3 w-28"
+                        >
+                            {playlist.picture_medium ? (
+                                <Image
+                                    source={{ uri: playlist.picture_medium }}
+                                    className="w-28 h-28 rounded-lg mb-2 bg-gray-200 dark:bg-gray-700"
+                                />
+                            ) : (
+                                <View className="w-28 h-28 rounded-lg mb-2 bg-gray-200 dark:bg-gray-700 items-center justify-center">
+                                    <Icon name="music-note" size={32} color="#9CA3AF" />
+                                </View>
+                            )}
+                            <Text className="text-gray-900 dark:text-white font-bold text-xs" numberOfLines={1}>
+                                {playlist.title}
+                            </Text>
+                            <Text className="text-gray-500 dark:text-gray-400 text-[10px]" numberOfLines={1}>
+                                {playlist.user?.name}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            )}
 
-            {musicData?.tracks && musicData.tracks.length > 0 && (
-                <View className="mt-4 pt-3 border-t border-purple-200 dark:border-purple-800/50">
+            {tracks.length > 0 && (
+                <View className={`pt-3 border-t border-purple-200 dark:border-purple-800/50 ${playlists.length > 0 ? 'mt-4' : ''}`}>
                     <Text className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">Önerilen Parçalar</Text>
-                    {musicData.tracks.slice(0, 3).map((track) => (
+                    {tracks.slice(0, 3).map((track) => (
                         <TouchableOpacity
                             key={track.id}
                             onPress={() => track.link && Linking.openURL(track.link)}
