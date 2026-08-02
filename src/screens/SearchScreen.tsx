@@ -5,7 +5,7 @@ import { FlashList } from '@shopify/flash-list';
 import axios from 'axios';
 import { useGoogleBooks, GoogleBookItem } from '../hooks/useGoogleBooks';
 import { pb } from '../services/pocketbase';
-import { findStoryTell } from '../services/storytell';
+import { booksApi } from '../services/api/books';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 
@@ -70,34 +70,17 @@ export const SearchScreen = () => {
                 || volumeInfo.industryIdentifiers?.find((id: any) => id.type === 'ISBN_10');
             const isbn = isbnIdentifier?.identifier || '';
 
-            const data = {
+            return await booksApi.createBook({
                 title: volumeInfo.title,
                 authors: volumeInfo.authors || [],
                 google_books_id: book.id,
                 cover_url: coverUrl,
                 language_code: i18n.language, // 'tr' or 'en'
-                user: pb.authStore.record?.id,
                 status: 'want_to_read',
                 isbn: isbn,
                 page_count: volumeInfo.pageCount || 0,
                 description: volumeInfo.description || '', // Add description from Google Books
-                enrichment_status: (pb.authStore.model?.settings?.auto_ai_enrichment) ? 'pending' : 'none',
-            };
-
-            const createdBook = await pb.collection('books').create(data);
-
-            const storytellRecord = await findStoryTell({
-                isbn: isbn || undefined,
-                google_books_id: book.id,
-                title: data.title,
             });
-            if (storytellRecord) {
-                await pb.collection('books').update(createdBook.id, {
-                    storytell: { id: storytellRecord.id, url: storytellRecord.url },
-                });
-            }
-
-            return createdBook;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['books'] });
@@ -160,25 +143,12 @@ export const SearchScreen = () => {
 
     const addManualBookMutation = useMutation({
         mutationFn: async () => {
-            const data = {
+            return await booksApi.createBook({
                 title: manualTitle,
                 authors: manualAuthor ? [manualAuthor] : [],
-                cover_url: '',
                 status: 'want_to_read',
                 language_code: i18n.language,
-                user: pb.authStore.record?.id,
-                enrichment_status: (pb.authStore.model?.settings?.auto_ai_enrichment) ? 'pending' : 'none',
-            };
-            const createdBook = await pb.collection('books').create(data);
-
-            const storytellRecord = await findStoryTell({ title: data.title });
-            if (storytellRecord) {
-                await pb.collection('books').update(createdBook.id, {
-                    storytell: { id: storytellRecord.id, url: storytellRecord.url },
-                });
-            }
-
-            return createdBook;
+            });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['books'] });

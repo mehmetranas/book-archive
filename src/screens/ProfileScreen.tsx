@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, Image, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -6,6 +6,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pb } from '../services/pocketbase';
+import { booksApi } from '../services/api/books';
 
 export const ProfileScreen = () => {
     const { t } = useTranslation();
@@ -13,26 +14,14 @@ export const ProfileScreen = () => {
     const insets = useSafeAreaInsets();
     const user = pb.authStore.record;
 
-    // Fetch finished books for statistics
-    const { data: finishedBooks, refetch, isLoading: isStatsLoading } = useQuery({
+    // Fetch reading statistics (server-computed over the caller's "read" books)
+    const { data: statsData, refetch, isLoading: isStatsLoading } = useQuery({
         queryKey: ['books', 'read_stats'],
         queryFn: async () => {
-            return await pb.collection('books').getFullList({
-                filter: `user = "${user?.id}" && status = "read"`,
-                sort: '-updated'
-            });
-        }
+            return await booksApi.getBookStats();
+        },
     });
-
-    // Statistics Calculations
-    const stats = useMemo(() => {
-        const books = finishedBooks || [];
-        const totalBooks = books.length;
-        const totalPages = books.reduce((sum, book) => sum + (book.page_count || 0), 0);
-        const avgPages = totalBooks > 0 ? Math.round(totalPages / totalBooks) : 0;
-
-        return { totalBooks, totalPages, avgPages };
-    }, [finishedBooks]);
+    const stats = statsData ?? { totalBooks: 0, totalPages: 0, avgPages: 0 };
 
     // Reading Challenge Goal (Hardcoded for now, later user setting)
     const yearlyGoal = 20;

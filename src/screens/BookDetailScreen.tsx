@@ -9,6 +9,8 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { pb } from '../services/pocketbase';
+import { booksApi } from '../services/api/books';
+import { recordStatusPoll } from '../hooks/useStatusPoll';
 import { Book } from './LibraryScreen';
 import { AIStatusBadge } from '../components/AIStatusBadge';
 import { CharacterCard } from '../components/CharacterCard';
@@ -19,14 +21,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSpotify } from '../hooks/useSpotify';
 import { useSearchMovies } from '../hooks/useTMDB';
 import { addMovieToLibrary } from '../services/tmdb';
-
-interface GlobalBook {
-    id: string;
-    title: string;
-    author?: string;
-    character_analysis_status: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
-    character_map?: any;
-}
 
 // Extend Book interface locally if needed or update the main one
 // Assuming Book is imported, we might need to cast or extend it here
@@ -49,20 +43,6 @@ export const BookDetailScreen = () => {
     const queryClient = useQueryClient();
     const { bookId } = route.params as { bookId: string };
 
-    useEffect(() => {
-        const unsubscribe = pb.collection('books').subscribe(bookId, (e) => {
-            // console.log('Book update event:', e.action, e.record.id);
-            if (e.action === 'update') {
-                queryClient.invalidateQueries({ queryKey: ['book', bookId] });
-                queryClient.invalidateQueries({ queryKey: ['books'] });
-            }
-        });
-
-        return () => {
-            unsubscribe.then((unsub) => unsub());
-        };
-    }, [bookId, queryClient]);
-
     const [isEditing, setIsEditing] = useState(false);
     const [editedTitle, setEditedTitle] = useState('');
     const [editedAuthor, setEditedAuthor] = useState('');
@@ -81,58 +61,16 @@ export const BookDetailScreen = () => {
     const { data: book, isLoading, refetch } = useQuery({
         queryKey: ['book', bookId],
         queryFn: async () => {
-            return await pb.collection('books').getOne<Book>(bookId, { expand: 'character_map' });
+            return await booksApi.getBook(bookId);
         },
-    });
-
-    // Sayfa yuklendiginde veya kitap guncellendiginde, eger kayitli resim varsa onu goster
-    // Old useEffect for generatedImage removed (now using generated_content array)
-
-    // Global Book Logic
-    const { data: globalBook, refetch: refetchGlobalBook } = useQuery({
-        queryKey: ['global_book', book?.title, book?.authors],
-        queryFn: async () => {
-            const title = book?.title;
-            const author = book?.authors?.[0]; // İlk yazarı alıyoruz
-
-            if (!title) return null;
-            try {
-                // Escape quotes in title to prevent filter syntax errors
-                const safeTitle = title.replace(/"/g, '\\"');
-                let filter = `title = "${safeTitle}"`;
-
-                if (author) {
-                    const safeAuthor = author.replace(/"/g, '\\"');
-                    filter += ` && author="${safeAuthor}"`;
-                }
-
-                return await pb.collection('global_books').getFirstListItem<GlobalBook>(filter);
-            } catch (err: any) {
-                return null;
-            }
-        },
-        enabled: !!book?.title,
+        refetchInterval: (query) => recordStatusPoll(query.state.data),
     });
 
     const analyzeCharacterMutation = useMutation({
         mutationFn: async () => {
-            if (!book?.title) return;
-
-            if (globalBook) {
-                // Global kitap varsa, sadece ilişkiyi kur
-                return await pb.collection('books').update(bookId, {
-                    character_map: globalBook.id
-                });
-            } else {
-                // Global kitap yoksa, analiz isteği oluştur (Cron Job yakalayacak)
-                // Sadece status'u pending yapıyoruz, create işlemi yapmıyoruz.
-                return await pb.collection('books').update(bookId, {
-                    character_analysis_status: 'pending'
-                });
-            }
+            return await booksApi.analyzeCharacters(bookId);
         },
         onSuccess: () => {
-            refetchGlobalBook();
             queryClient.invalidateQueries({ queryKey: ['book', bookId] });
             Toast.show({
                 type: 'success',
@@ -151,16 +89,6 @@ export const BookDetailScreen = () => {
             });
         }
     });
-
-    useEffect(() => {
-        if (!book?.title) return;
-        const unsubscribe = pb.collection('global_books').subscribe('*', (e) => {
-            if (e.record.title === book.title) {
-                queryClient.invalidateQueries({ queryKey: ['global_book', book.title] });
-            }
-        });
-        return () => { unsubscribe.then((unsub) => unsub()); };
-    }, [book?.title, queryClient]);
 
     // Invalidate cache on mount to ensure fresh data
     useEffect(() => {
@@ -184,7 +112,7 @@ export const BookDetailScreen = () => {
 
     const updateMutation = useMutation({
         mutationFn: async (data: Partial<Book>) => {
-            return await pb.collection('books').update(bookId, data);
+            return await booksApi.updateBook(bookId, data);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['book', bookId] });
@@ -211,7 +139,7 @@ export const BookDetailScreen = () => {
 
     const deleteMutation = useMutation({
         mutationFn: async () => {
-            return await pb.collection('books').delete(bookId);
+            return await booksApi.deleteBook(bookId);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['books'] });
@@ -233,7 +161,7 @@ export const BookDetailScreen = () => {
 
     const enrichmentMutation = useMutation({
         mutationFn: async () => {
-            return await pb.collection('books').update(bookId, { enrichment_status: 'pending' });
+            return await booksApi.enrichBook(bookId);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['book', bookId] });
@@ -347,44 +275,21 @@ export const BookDetailScreen = () => {
     // ... (existing code) ...
 
     // Helper to get characters
+    // The service resolves the `character_map` relation server-side, so `book.character_map`
+    // is always either the linked global_books record or null - never a bare relation id.
     const getCharacters = () => {
-        // 1. Önce Relation (Global Book) üzerinden gelen veriye bak
-        let relatedGlobalBook = book?.expand?.character_map;
+        const relatedGlobalBook = book?.character_map;
+        if (!relatedGlobalBook) return null;
 
-        if (Array.isArray(relatedGlobalBook)) {
-            relatedGlobalBook = relatedGlobalBook[0];
-        }
-
-        if (relatedGlobalBook) {
-            const mapData = relatedGlobalBook.character_map;
-            if (Array.isArray(mapData)) return mapData;
-            // String ise parse et
-            if (typeof mapData === 'string') {
-                try {
-                    const parsed = JSON.parse(mapData);
-                    if (Array.isArray(parsed)) return parsed;
-                } catch (e) {
-                    // Global map parse error - silently ignore
-                }
+        const mapData = relatedGlobalBook.character_map;
+        if (Array.isArray(mapData)) return mapData;
+        if (typeof mapData === 'string') {
+            try {
+                const parsed = JSON.parse(mapData);
+                if (Array.isArray(parsed)) return parsed;
+            } catch (e) {
+                // Global map parse error - silently ignore
             }
-        }
-
-        // 2. Yoksa Global Book sorgusundan gelen veriye bak
-        if (globalBook?.character_map) {
-            const mapData = globalBook.character_map;
-            if (Array.isArray(mapData)) return mapData;
-            if (typeof mapData === 'string') {
-                try {
-                    const parsed = JSON.parse(mapData);
-                    if (Array.isArray(parsed)) return parsed;
-                } catch (e) { }
-            }
-        }
-
-        // 3. Fallback Local
-        const localMap = book?.character_map as any;
-        if (localMap && !localMap.id && typeof localMap !== 'string') {
-            if (Array.isArray(localMap)) return localMap;
         }
 
         return null;
@@ -1165,10 +1070,7 @@ const SmartNotesSection = ({ bookId }: { bookId: string }) => {
     const { data: notes, isLoading } = useQuery({
         queryKey: ['smart_notes', bookId],
         queryFn: async () => {
-            return await pb.collection('notes').getFullList({
-                filter: `book="${bookId}"`,
-                sort: '-created'
-            });
+            return await booksApi.getBookNotes(bookId);
         }
     });
 

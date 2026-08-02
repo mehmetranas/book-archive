@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Modal, TextInput, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -6,7 +6,8 @@ import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient, useMutation, useInfiniteQuery } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { pb } from '../services/pocketbase';
-import { findStoryTell } from '../services/storytell';
+import { booksApi } from '../services/api/books';
+import { listStatusPoll } from '../hooks/useStatusPoll';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
 import { AIStatusBadge } from '../components/AIStatusBadge';
@@ -22,6 +23,14 @@ export interface Character {
     role: string;
     traits: string[];
     relationships?: Relationship[];
+}
+
+export interface GlobalBook {
+    id: string;
+    title: string;
+    author?: string;
+    character_analysis_status: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
+    character_map?: Character[] | string;
 }
 
 export interface Book {
@@ -42,7 +51,7 @@ export interface Book {
     in_library?: boolean;
     is_archived?: boolean;
     character_analysis_status?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
-    character_map?: Character[];
+    character_map?: GlobalBook | null;
     image_gen_status?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
     generated_image_base64?: string;
     generated_image?: string;
@@ -87,37 +96,32 @@ export const LibraryScreen = () => {
         queryKey: ['books', searchQuery, selectedStatus],
         initialPageParam: 1,
         queryFn: async ({ pageParam = 1 }) => {
-            const filterParts = [];
+            const params: Parameters<typeof booksApi.listBooks>[0] = { page: pageParam, perPage: 20 };
 
             if (searchQuery) {
-                const cleanQuery = searchQuery.replace(/"/g, '\\"');
-                filterParts.push(`(title ~ "${cleanQuery}" || authors ~ "${cleanQuery}")`);
+                params.search = searchQuery;
             }
 
             if (selectedStatus === 'archived') {
-                filterParts.push('is_archived = true');
+                params.is_archived = true;
             } else if (selectedStatus === 'in_library') {
-                filterParts.push('in_library = true');
-                filterParts.push('is_archived = false');
+                params.in_library = true;
+                params.is_archived = false;
             } else {
                 // Normal filters show non-archived books
-                filterParts.push('is_archived = false');
+                params.is_archived = false;
 
                 if (selectedStatus !== 'all') {
-                    filterParts.push(`status = "${selectedStatus}"`);
+                    params.status = selectedStatus;
                 }
             }
 
-            const filterString = filterParts.join(' && ');
-
-            return await pb.collection('books').getList<Book>(pageParam, 20, {
-                sort: '-created',
-                filter: filterString,
-            });
+            return await booksApi.listBooks(params);
         },
-        getNextPageParam: (lastPage: any) => {
+        getNextPageParam: (lastPage) => {
             return lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined;
         },
+        refetchInterval: (query) => listStatusPoll(query.state.data?.pages.flatMap((page) => page.items) ?? []),
     });
 
     const books = React.useMemo(() => data?.pages.flatMap(page => page.items) || [], [data]);
@@ -166,25 +170,12 @@ export const LibraryScreen = () => {
 
     const addManualBookMutation = useMutation({
         mutationFn: async () => {
-            const data = {
+            return await booksApi.createBook({
                 title: manualTitle,
                 authors: manualAuthor ? [manualAuthor] : [],
-                cover_url: '',
                 status: 'want_to_read',
-                enrichment_status: 'pending',
                 language_code: i18n.language,
-                user: pb.authStore.record?.id,
-            };
-            const createdBook = await pb.collection('books').create(data);
-
-            const storytellRecord = await findStoryTell({ title: data.title });
-            if (storytellRecord) {
-                await pb.collection('books').update(createdBook.id, {
-                    storytell: { id: storytellRecord.id, url: storytellRecord.url },
-                });
-            }
-
-            return createdBook;
+            });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['books'] });
@@ -209,7 +200,7 @@ export const LibraryScreen = () => {
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            return await pb.collection('books').delete(id);
+            return await booksApi.deleteBook(id);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['books'] });
@@ -233,18 +224,6 @@ export const LibraryScreen = () => {
             ]
         );
     };
-
-    useEffect(() => {
-        const unsubscribe = pb.collection('books').subscribe('*', (e) => {
-            if (e.action === 'create' || e.action === 'delete' || e.action === 'update') {
-                queryClient.invalidateQueries({ queryKey: ['books'] });
-            }
-        });
-
-        return () => {
-            unsubscribe.then((unsub) => unsub());
-        };
-    }, [queryClient]);
 
     const getStatusLabel = (status: string) => {
         switch (status) {
