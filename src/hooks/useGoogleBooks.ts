@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useDebounce } from './useDebounce';
-import { pb } from '../services/pocketbase';
+import { serviceClient } from '../services/api/client';
 
 export interface GoogleBookVolumeInfo {
     title: string;
@@ -33,12 +33,11 @@ export const useGoogleBooks = (query: string) => {
         queryFn: async () => {
             if (!debouncedQuery) return [];
 
-            const items = await pb.send<GoogleBookItem[]>('/api/book_search', {
-                method: 'GET',
-                query: { q: debouncedQuery },
+            const { data } = await serviceClient.get<GoogleBookItem[]>('/book-search', {
+                params: { q: debouncedQuery },
             });
 
-            return items || [];
+            return data || [];
         },
         enabled: debouncedQuery.length > 0,
         staleTime: 1000 * 60 * 5, // 5 minutes
