@@ -18,7 +18,7 @@ import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigContext';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSpotify } from '../hooks/useSpotify';
+import { useMusicSearch } from '../hooks/useMusicSearch';
 import { useSearchMovies } from '../hooks/useTMDB';
 import { addMovieToLibrary } from '../services/tmdb';
 
@@ -514,7 +514,7 @@ export const BookDetailScreen = () => {
                         {book.enrichment_status === 'completed' && (
                             <>
                                 <MovieSuggestionSection bookTitle={book.title} suggestion={book.movie_suggestion} />
-                                <SpotifySection keyword={book.spotify_keyword} />
+                                <MusicSection keyword={book.spotify_keyword} />
                                 <SmartNotesSection bookId={bookId} />
                             </>
                         )}
@@ -530,7 +530,7 @@ export const BookDetailScreen = () => {
                             Yapay Zeka Destekli İçerik
                         </Text>
                         <Text className="text-sm text-gray-600 dark:text-gray-300 text-center mb-4 px-4 leading-5 relative z-10">
-                            Kitabınız için film önerileri, Spotify listeleri ve akıllı notlar oluşturun.
+                            Kitabınız için film önerileri, müzik listeleri ve akıllı notlar oluşturun.
                             {"\n"}
                             {aiConfig.promo_text ? (
                                 <Text className="font-bold text-green-600 dark:text-green-400"> ({aiConfig.promo_text})</Text>
@@ -940,63 +940,62 @@ const MovieSuggestionSection = ({ bookTitle, suggestion }: { bookTitle: string; 
     );
 };
 
-// 2. Spotify Section
-// 2. Spotify Section
-const SpotifySection = ({ keyword }: { keyword?: string }) => {
-    const { data: spotifyData, isLoading, error, isError } = useSpotify(keyword);
+// 2. Music Section (Deezer - no auth/premium required, unlike Spotify's
+// Client Credentials flow which now requires the app-owner account to have Premium)
+const MusicSection = ({ keyword }: { keyword?: string }) => {
+    const { data: musicData, isLoading, error, isError } = useMusicSearch(keyword);
 
     if (!keyword) return null; // Still hide if no keyword exists at all (AI hasn't run)
 
     if (isLoading) {
         return (
-            <View className="mx-4 mb-6 bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-100 dark:border-green-800/50 flex-row items-center justify-center">
-                <ActivityIndicator size="small" color="#1DB954" className="mr-2" />
-                <Text className="text-green-700 dark:text-green-300 text-xs font-medium">Spotify'da aranıyor: {keyword}...</Text>
+            <View className="mx-4 mb-6 bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-800/50 flex-row items-center justify-center">
+                <ActivityIndicator size="small" color="#A238FF" className="mr-2" />
+                <Text className="text-purple-700 dark:text-purple-300 text-xs font-medium">Müzik aranıyor: {keyword}...</Text>
             </View>
         );
     }
 
     if (isError) {
-        console.error("Spotify Error:", error);
+        console.error("Music Error:", error);
         const err = error as any;
         const errMsg = err?.data?.error || err?.message || "Bağlantı hatası";
         return (
             <View className="mx-4 mb-6 bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-100 dark:border-red-800/50">
-                <Text className="text-red-600 dark:text-red-400 text-xs">Spotify bağlantı hatası: {errMsg}</Text>
+                <Text className="text-red-600 dark:text-red-400 text-xs">Müzik bağlantı hatası: {errMsg}</Text>
             </View>
         );
     }
 
-    // Filter out potential null items which can occur in some Spotify responses
-    const validPlaylists = spotifyData?.playlists?.items?.filter(item => item !== null) || [];
+    const playlists = musicData?.playlists || [];
 
-    if (validPlaylists.length === 0) {
+    if (playlists.length === 0) {
         return (
             <View className="mx-4 mb-6 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700 border-dashed">
-                <Text className="text-gray-500 dark:text-gray-400 text-xs text-center">Spotify'da "{keyword}" için sonuç bulunamadı.</Text>
+                <Text className="text-gray-500 dark:text-gray-400 text-xs text-center">"{keyword}" için sonuç bulunamadı.</Text>
             </View>
         );
     }
 
     return (
-        <View className="mx-4 mb-6 bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-100 dark:border-green-800/50">
+        <View className="mx-4 mb-6 bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-800/50">
             <View className="flex-row items-center mb-3">
-                <Icon name="spotify" size={24} color="#1DB954" className="mr-2" />
+                <Icon name="music-note" size={24} color="#A238FF" className="mr-2" />
                 <Text className="text-gray-900 dark:text-gray-100 font-bold text-base flex-1">
                     Okuma Müzikleri
                 </Text>
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {validPlaylists.map((playlist) => (
+                {playlists.map((playlist) => (
                     <TouchableOpacity
                         key={playlist.id}
-                        onPress={() => playlist.external_urls?.spotify && Linking.openURL(playlist.external_urls.spotify)}
+                        onPress={() => playlist.link && Linking.openURL(playlist.link)}
                         className="mr-3 w-28"
                     >
-                        {playlist.images?.[0]?.url ? (
+                        {playlist.picture_medium ? (
                             <Image
-                                source={{ uri: playlist.images[0].url }}
+                                source={{ uri: playlist.picture_medium }}
                                 className="w-28 h-28 rounded-lg mb-2 bg-gray-200 dark:bg-gray-700"
                             />
                         ) : (
@@ -1005,29 +1004,29 @@ const SpotifySection = ({ keyword }: { keyword?: string }) => {
                             </View>
                         )}
                         <Text className="text-gray-900 dark:text-white font-bold text-xs" numberOfLines={1}>
-                            {playlist.name}
+                            {playlist.title}
                         </Text>
                         <Text className="text-gray-500 dark:text-gray-400 text-[10px]" numberOfLines={1}>
-                            {playlist.owner?.display_name}
+                            {playlist.user?.name}
                         </Text>
                     </TouchableOpacity>
                 ))}
             </ScrollView>
 
-            {spotifyData?.tracks?.items && spotifyData.tracks.items.length > 0 && (
-                <View className="mt-4 pt-3 border-t border-green-200 dark:border-green-800/50">
+            {musicData?.tracks && musicData.tracks.length > 0 && (
+                <View className="mt-4 pt-3 border-t border-purple-200 dark:border-purple-800/50">
                     <Text className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">Önerilen Parçalar</Text>
-                    {spotifyData.tracks?.items?.filter(t => t !== null).slice(0, 3).map((track) => (
+                    {musicData.tracks.slice(0, 3).map((track) => (
                         <TouchableOpacity
                             key={track.id}
-                            onPress={() => track.external_urls?.spotify && Linking.openURL(track.external_urls.spotify)}
+                            onPress={() => track.link && Linking.openURL(track.link)}
                             className="flex-row items-center mb-2"
                         >
-                            <View className="w-6 h-6 bg-green-200 dark:bg-green-800 rounded-full items-center justify-center mr-2">
-                                <Icon name="play" size={12} color="#15803d" />
+                            <View className="w-6 h-6 bg-purple-200 dark:bg-purple-800 rounded-full items-center justify-center mr-2">
+                                <Icon name="play" size={12} color="#7C2D92" />
                             </View>
                             <Text className="text-gray-800 dark:text-gray-200 text-xs flex-1" numberOfLines={1}>
-                                {track.name} <Text className="text-gray-500">- {track.artists?.[0]?.name}</Text>
+                                {track.title} <Text className="text-gray-500">- {track.artist?.name}</Text>
                             </Text>
                         </TouchableOpacity>
                     ))}

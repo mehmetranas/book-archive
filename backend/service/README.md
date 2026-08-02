@@ -7,7 +7,7 @@ realtime) — this service is an authenticated client of it, using the
 
 See `/Users/mehmetsait/.claude/plans/quizzical-exploring-quail.md` (or the
 project's plan history) for the full phased migration plan. This service
-currently covers **Phase A**: `book-search`, `spotify-search`, `tmdb-proxy`.
+currently covers **Phase A**: `book-search`, `music-search`, `tmdb-proxy`.
 
 ## Env vars
 
@@ -22,7 +22,6 @@ variables UI — never commit real secrets.
 | `PORT` | HTTP port (default 3000) |
 | `GOOGLE_BOOKS_KEY` | Required — Google Books API key (unauthenticated calls hit a very low shared daily quota) |
 | `TMDB_API_KEY` | TMDB proxy |
-| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | Spotify client-credentials OAuth flow |
 | `OPENROUTER_API_KEY` | Reserved for Phase B/C AI endpoints |
 | `RC_WEBHOOK_SECRET` | Reserved for Phase D payment webhook |
 

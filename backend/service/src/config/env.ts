@@ -7,8 +7,6 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   GOOGLE_BOOKS_KEY: z.string().min(1),
   TMDB_API_KEY: z.string().min(1),
-  SPOTIFY_CLIENT_ID: z.string().min(1),
-  SPOTIFY_CLIENT_SECRET: z.string().min(1),
   OPENROUTER_API_KEY: z.string().min(1),
   // Not required until phase D wires up the webhook route, but validated up front so
   // misconfiguration fails at boot instead of silently skipping the signature check.
