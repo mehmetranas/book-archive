@@ -11,11 +11,16 @@ interface OpenRouterChatResponse {
 
 export const ENRICHMENT_MODELS = [
   "openai/gpt-4o-mini",
-  "google/gemini-2.0-flash-001",
-  "anthropic/claude-3-5-haiku",
+  "google/gemini-2.5-flash",
+  // claude-3-5-haiku (the original hook's model) is gone from OpenRouter's
+  // catalog too - bumped to the current Haiku generation.
+  "anthropic/claude-haiku-4.5",
 ];
 
-export const CHARACTER_GEN_MODELS = ["google/gemini-2.0-flash-001"];
+// gemini-2.0-flash-001 (the original hook's model) 404s on OpenRouter now -
+// bumped to the current equivalent in the same family, same single-model,
+// no-fallback behavior.
+export const CHARACTER_GEN_MODELS = ["google/gemini-2.5-flash"];
 
 /**
  * Tries each model in order against OpenRouter's chat completions endpoint,
