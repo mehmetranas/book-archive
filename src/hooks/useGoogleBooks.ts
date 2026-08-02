@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import { useDebounce } from './useDebounce';
+import { pb } from '../services/pocketbase';
 
 export interface GoogleBookVolumeInfo {
     title: string;
@@ -24,11 +24,6 @@ export interface GoogleBookItem {
     volumeInfo: GoogleBookVolumeInfo;
 }
 
-interface GoogleBooksResponse {
-    items?: GoogleBookItem[];
-    totalItems: number;
-}
-
 export const useGoogleBooks = (query: string) => {
     const { i18n } = useTranslation();
     const debouncedQuery = useDebounce(query, 500);
@@ -38,21 +33,12 @@ export const useGoogleBooks = (query: string) => {
         queryFn: async () => {
             if (!debouncedQuery) return [];
 
-            console.log('Google Books API Request:', `https://www.googleapis.com/books/v1/volumes?q=${debouncedQuery}&maxResults=20&printType=books`);
+            const items = await pb.send<GoogleBookItem[]>('/api/book_search', {
+                method: 'GET',
+                query: { q: debouncedQuery },
+            });
 
-            const response = await axios.get<GoogleBooksResponse>(
-                'https://www.googleapis.com/books/v1/volumes',
-                {
-                    params: {
-                        q: debouncedQuery,
-                        maxResults: 40,
-                        printType: 'books',
-                        langRestrict: i18n.language,
-                    },
-                }
-            );
-
-            return response.data.items || [];
+            return items || [];
         },
         enabled: debouncedQuery.length > 0,
         staleTime: 1000 * 60 * 5, // 5 minutes
