@@ -34,10 +34,16 @@ else
 fi
 
 FILENAME=$(basename "$LOCAL_FILE")
+EXTENSION="${FILENAME##*.}"
+FILENAME_NO_EXT="${FILENAME%.*}"
 
-# Sunucudaki dosyalar orijinal adiyla (pocketjs.*.js) duruyor, .pb.js'e cevirmiyoruz
-# (cevirirsek ayni hook iki kez -eski ve yeni isimle- yuklenir).
-REMOTE_FILENAME="$FILENAME"
+# PocketBase pb_hooks klasorunde SADECE .pb.js ile bitin dosyalari hook olarak yukler
+# (dogrulandi: PocketBase 0.39.7, duz .js dosyalari sessizce yok sayiyor).
+if [[ "$FILENAME" == *".pb.js" ]]; then
+    REMOTE_FILENAME="$FILENAME"
+else
+    REMOTE_FILENAME="${FILENAME_NO_EXT}.pb.js"
+fi
 
 echo "----------------------------------------"
 echo "📂 Local Dosya: $LOCAL_FILE"
