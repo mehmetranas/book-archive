@@ -57,7 +57,11 @@ export async function runImageGen(bookId: string): Promise<void> {
         Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ model: "black-forest-labs/flux.2-klein-4b", prompt }),
+      // flux.2-klein-4b (the original hook's model) is gone from OpenRouter's
+      // catalog - swapped to a current image-generation model. Same
+      // /api/v1/images request/response shape (data[0].b64_json), no other
+      // changes needed.
+      body: JSON.stringify({ model: "krea/krea-2-medium-turbo", prompt }),
       signal: AbortSignal.timeout(60_000),
     });
 
