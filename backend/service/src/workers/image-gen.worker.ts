@@ -79,7 +79,9 @@ export async function runImageGen(bookId: string): Promise<void> {
     const formData = new FormData();
     formData.set("image_gen_status", "completed");
     formData.set("image_prompt", prompt);
-    formData.set("generated_image", new Blob([buffer], { type: "image/jpeg" }), `${bookId}.jpg`);
+    // krea/krea-2-medium-turbo returns PNG bytes, not JPEG (verified against
+    // the actual response) - match the real content type/extension.
+    formData.set("generated_image", new Blob([buffer], { type: "image/png" }), `${bookId}.png`);
 
     await withAdminAuth(() => pb.collection("books").update(bookId, formData));
 
