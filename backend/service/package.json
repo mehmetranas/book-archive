@@ -10,7 +10,8 @@
     "dev": "tsx watch --env-file=.env src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "get-token": "tsx --env-file=.env scripts/get-token.ts"
+    "get-token": "tsx --env-file=.env scripts/get-token.ts",
+    "add-notes-fields": "tsx --env-file=.env scripts/add-notes-fields.ts"
   },
   "dependencies": {
     "eventsource": "^4.1.0",
