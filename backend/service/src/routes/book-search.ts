@@ -25,6 +25,7 @@ export async function bookSearchRoute(app: FastifyInstance): Promise<void> {
       url.searchParams.set("q", query);
       url.searchParams.set("maxResults", "20");
       url.searchParams.set("printType", "books");
+      url.searchParams.set("country", "TR");
       url.searchParams.set("key", env.GOOGLE_BOOKS_KEY);
 
       const res = await fetch(url);
