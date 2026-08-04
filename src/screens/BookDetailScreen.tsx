@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
-import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share, Modal, FlatList, Dimensions, TouchableWithoutFeedback, Linking, StyleSheet, Switch } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator, Alert, ActionSheetIOS, Platform, AlertButton, RefreshControl, Share, Modal, Dimensions, TouchableWithoutFeedback, Linking, StyleSheet, Switch } from 'react-native';
 
 
 import { useColorScheme } from 'nativewind';
@@ -13,7 +13,6 @@ import { booksApi } from '../services/api/books';
 import { recordStatusPoll } from '../hooks/useStatusPoll';
 import { Book } from './LibraryScreen';
 import { AIStatusBadge } from '../components/AIStatusBadge';
-import { CharacterCard } from '../components/CharacterCard';
 import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigContext';
 
@@ -28,8 +27,6 @@ import { addMovieToLibrary } from '../services/tmdb';
 // For now, let's just use 'any' casting in the component or update the import.
 // Let's check where Book is defined. It is imported from './LibraryScreen'.
 // We should update LibraryScreen.tsx to include expand.
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export const BookDetailScreen = () => {
     const { t } = useTranslation();
@@ -49,14 +46,9 @@ export const BookDetailScreen = () => {
     const [editedIsbn, setEditedIsbn] = useState('');
     const [editedDescription, setEditedDescription] = useState('');
     const [refreshing, setRefreshing] = useState(false);
-    const [characterModalVisible, setCharacterModalVisible] = useState(false);
     const [optionsModalVisible, setOptionsModalVisible] = useState(false);
 
-
-    const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0); // Existing line
-
     const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-    const flatListRef = useRef<FlatList>(null);
 
     const { data: book, isLoading, refetch } = useQuery({
         queryKey: ['book', bookId],
@@ -64,30 +56,6 @@ export const BookDetailScreen = () => {
             return await booksApi.getBook(bookId);
         },
         refetchInterval: (query) => recordStatusPoll(query.state.data),
-    });
-
-    const analyzeCharacterMutation = useMutation({
-        mutationFn: async () => {
-            return await booksApi.analyzeCharacters(bookId);
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['book', bookId] });
-            Toast.show({
-                type: 'success',
-                text1: t('common.success'),
-                text2: t('detail.analysisStarted', 'Analiz başlatıldı.'),
-                position: 'top',
-                visibilityTime: 3000,
-            });
-        },
-        onError: (err: any) => {
-            Toast.show({
-                type: 'error',
-                text1: t('common.error'),
-                text2: err.message,
-                position: 'bottom',
-            });
-        }
     });
 
     // Invalidate cache on mount to ensure fresh data
@@ -267,37 +235,6 @@ export const BookDetailScreen = () => {
     const coverUrl = book?.cover_url?.startsWith('http://')
         ? book.cover_url.replace('http://', 'https://')
         : book?.cover_url;
-
-    // ... (existing code) ...
-
-    // Helper to get characters
-
-    // ... (existing code) ...
-
-    // Helper to get characters
-    // The service resolves the `character_map` relation server-side, so `book.character_map`
-    // is always either the linked global_books record or null - never a bare relation id.
-    const getCharacters = () => {
-        const relatedGlobalBook = book?.character_map;
-        if (!relatedGlobalBook) return null;
-
-        const mapData = relatedGlobalBook.character_map;
-        if (Array.isArray(mapData)) return mapData;
-        if (typeof mapData === 'string') {
-            try {
-                const parsed = JSON.parse(mapData);
-                if (Array.isArray(parsed)) return parsed;
-            } catch (e) {
-                // Global map parse error - silently ignore
-            }
-        }
-
-        return null;
-    };
-
-    const characters = getCharacters();
-
-
 
     return (
         <View
@@ -581,130 +518,7 @@ export const BookDetailScreen = () => {
                     </View>
                 )}
 
-                {/* Character Analysis Section */}
-                {/* Character Analysis Section (UI Removed, Code Preserved) */}
-
             </ScrollView >
-
-            {/* Full Screen Character Modal */}
-            < Modal
-                visible={characterModalVisible}
-                animationType="slide"
-                presentationStyle="pageSheet"
-                onRequestClose={() => setCharacterModalVisible(false)}
-            >
-                <View className="flex-1 bg-gray-50 dark:bg-gray-900">
-                    {/* Modal Header */}
-                    <View className="flex-row items-center justify-between p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                        <Text className="text-lg font-bold text-gray-900 dark:text-white">
-                            {t('detail.characters', 'Karakter Analizi')}
-                        </Text>
-                        <TouchableOpacity
-                            onPress={() => setCharacterModalVisible(false)}
-                            className="bg-gray-200 dark:bg-gray-700 p-2 rounded-full"
-                        >
-                            <Icon name="close" size={20} color="#4B5563" />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Character Pager */}
-                    <FlatList
-                        ref={flatListRef}
-                        data={characters || []}
-                        horizontal
-                        pagingEnabled
-                        showsHorizontalScrollIndicator={false}
-                        initialScrollIndex={selectedCharacterIndex}
-                        onMomentumScrollEnd={(ev) => {
-                            const newIndex = Math.round(ev.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-                            setSelectedCharacterIndex(newIndex);
-                        }}
-                        getItemLayout={(data, index) => (
-                            { length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index }
-                        )}
-                        renderItem={({ item }) => (
-                            <View style={{ width: SCREEN_WIDTH }} className="p-4">
-                                <ScrollView className="flex-1 bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6">
-                                    {/* Header: Name & Role */}
-                                    <View className="items-center mb-6 border-b border-gray-100 dark:border-gray-700 pb-6">
-                                        <View className="w-20 h-20 bg-indigo-100 dark:bg-indigo-900 rounded-full items-center justify-center mb-4">
-                                            <Text className="text-3xl font-bold text-indigo-600 dark:text-indigo-300">
-                                                {item.name.charAt(0).toUpperCase()}
-                                            </Text>
-                                        </View>
-                                        <Text className="text-3xl font-bold text-gray-900 dark:text-white text-center mb-2">
-                                            {item.name}
-                                        </Text>
-                                        <Text className="text-xl font-medium text-indigo-600 dark:text-indigo-400 text-center">
-                                            {item.role}
-                                        </Text>
-                                    </View>
-
-                                    {/* Traits */}
-                                    <View className="mb-6">
-                                        <Text className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                                            {t('character.traits', 'Özellikler')}
-                                        </Text>
-                                        <View className="flex-row flex-wrap gap-2">
-                                            {item.traits && item.traits.map((trait: string, idx: number) => (
-                                                <View key={idx} className="bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-lg">
-                                                    <Text className="text-base text-gray-700 dark:text-gray-300">
-                                                        {trait}
-                                                    </Text>
-                                                </View>
-                                            ))}
-                                        </View>
-                                    </View>
-
-                                    {/* Relationships */}
-                                    {item.relationships && item.relationships.length > 0 && (
-                                        <View className="mb-6">
-                                            <Text className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                                                {t('character.relations', 'İlişkiler')}
-                                            </Text>
-                                            {item.relationships && item.relationships.map((rel: any, idx: number) => (
-                                                <View key={idx} className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl mb-3 border border-gray-100 dark:border-gray-700">
-                                                    <View className="flex-row items-center mb-1">
-                                                        <Icon name="account-arrow-right" size={20} color="#6366F1" className="mr-2" />
-                                                        <Text className="text-lg font-bold text-gray-800 dark:text-gray-200 ml-2">
-                                                            {rel.target}
-                                                        </Text>
-                                                    </View>
-                                                    <Text className="text-sm text-indigo-600 dark:text-indigo-400 font-medium mb-1 ml-7">
-                                                        {rel.type}
-                                                    </Text>
-                                                    {rel.details && (
-                                                        <Text className="text-gray-600 dark:text-gray-400 ml-7 leading-5">
-                                                            {rel.details}
-                                                        </Text>
-                                                    )}
-                                                </View>
-                                            ))}
-                                        </View>
-                                    )}
-
-                                    {/* Bottom Spacer */}
-                                    <View className="h-10" />
-                                </ScrollView>
-                            </View>
-                        )}
-                    />
-
-                    {/* Pagination Dots */}
-                    <View className="flex-row justify-center pb-8 pt-2 bg-gray-50 dark:bg-gray-900">
-                        {characters && characters.map((_, idx) => (
-                            <TouchableOpacity
-                                key={idx}
-                                onPress={() => {
-                                    setSelectedCharacterIndex(idx);
-                                    flatListRef.current?.scrollToIndex({ index: idx, animated: true });
-                                }}
-                                className={`w-2 h-2 rounded-full mx-1 ${idx === selectedCharacterIndex ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}
-                            />
-                        ))}
-                    </View>
-                </View>
-            </Modal >
 
             {/* Options Bottom Sheet Modal */}
             < Modal

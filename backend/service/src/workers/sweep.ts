@@ -3,21 +3,19 @@ import { pb, withAdminAuth } from "../lib/pocketbase-admin-client.js";
 import { buildFilter } from "../lib/pb-filter.js";
 import { logger } from "../lib/logger.js";
 import { runBookEnrichment } from "./book-enrichment.worker.js";
-import { runCharacterAnalysis } from "./character-gen.worker.js";
 import { runImageGen } from "./image-gen.worker.js";
 
 const STALE_PROCESSING_MINUTES = 10;
 const ORPHANED_PENDING_SECONDS = 30;
 
 interface JobKind {
-  statusField: "enrichment_status" | "character_analysis_status" | "image_gen_status";
+  statusField: "enrichment_status" | "image_gen_status";
   timeoutMarker: string;
   run: (bookId: string) => Promise<void>;
 }
 
 const JOB_KINDS: JobKind[] = [
   { statusField: "enrichment_status", timeoutMarker: "Timeout", run: runBookEnrichment },
-  { statusField: "character_analysis_status", timeoutMarker: "CharTimeout", run: runCharacterAnalysis },
   { statusField: "image_gen_status", timeoutMarker: "ImgTimeout", run: runImageGen },
 ];
 

@@ -3,7 +3,6 @@ const POLL_INTERVAL_MS = 4000;
 
 interface StatusFields {
     enrichment_status?: string | null;
-    character_analysis_status?: string | null;
     image_gen_status?: string | null;
 }
 
@@ -14,7 +13,6 @@ function isActive(status?: string | null): boolean {
 function hasActiveStatus(record: StatusFields): boolean {
     return (
         isActive(record.enrichment_status) ||
-        isActive(record.character_analysis_status) ||
         isActive(record.image_gen_status)
     );
 }

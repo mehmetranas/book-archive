@@ -12,27 +12,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
 import { AIStatusBadge } from '../components/AIStatusBadge';
 
-export interface Relationship {
-    target: string;
-    type: string;
-    details?: string;
-}
-
-export interface Character {
-    name: string;
-    role: string;
-    traits: string[];
-    relationships?: Relationship[];
-}
-
-export interface GlobalBook {
-    id: string;
-    title: string;
-    author?: string;
-    character_analysis_status: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
-    character_map?: Character[] | string;
-}
-
 export interface Book {
     id: string;
     collectionId: string;
@@ -50,8 +29,6 @@ export interface Book {
     isbn?: string;
     in_library?: boolean;
     is_archived?: boolean;
-    character_analysis_status?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
-    character_map?: GlobalBook | null;
     image_gen_status?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
     generated_image_base64?: string;
     generated_image?: string;
@@ -304,13 +281,6 @@ export const LibraryScreen = () => {
                         {item.is_archived && (
                             <View className="bg-orange-100 dark:bg-orange-900 px-1.5 py-0.5 rounded">
                                 <Icon name="archive" size={12} color={isDark ? "#FED7AA" : "#C2410C"} />
-                            </View>
-                        )}
-
-                        {/* Character Analysis Badge */}
-                        {item.character_analysis_status === 'completed' && (
-                            <View className="bg-indigo-100 dark:bg-indigo-900 px-1.5 py-0.5 rounded">
-                                <Icon name="account-multiple" size={12} color={isDark ? "#C7D2FE" : "#4F46E5"} />
                             </View>
                         )}
 

@@ -16,7 +16,6 @@ export interface BookStatus {
     id: string;
     updated: string;
     enrichment_status: Book['enrichment_status'];
-    character_analysis_status: Book['character_analysis_status'];
     image_gen_status: Book['image_gen_status'];
 }
 
@@ -97,13 +96,6 @@ export const booksApi = {
 
     enrichBook: async (id: string): Promise<{ enrichment_status: string }> => {
         const { data } = await serviceClient.post(`/books/${id}/enrich`);
-        return data;
-    },
-
-    analyzeCharacters: async (
-        id: string,
-    ): Promise<{ character_analysis_status: string; cached: boolean }> => {
-        const { data } = await serviceClient.post(`/books/${id}/analyze-characters`);
         return data;
     },
 };

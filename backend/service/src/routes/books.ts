@@ -5,7 +5,6 @@ import { pb, withAdminAuth } from "../lib/pocketbase-admin-client.js";
 import { buildFilter } from "../lib/pb-filter.js";
 import { logger } from "../lib/logger.js";
 import { runBookEnrichment } from "../workers/book-enrichment.worker.js";
-import { runCharacterAnalysis } from "../workers/character-gen.worker.js";
 
 interface CreateBookBody {
   title: string;
@@ -132,14 +131,7 @@ export async function booksRoute(app: FastifyInstance): Promise<void> {
       const book = await loadOwnedBook(request.params.id, request.user!.id);
       if (!book) return reply.code(404).send({ error: "Not found" });
 
-      let globalBook: RecordModel | null = null;
-      if (book.character_map) {
-        globalBook = await withAdminAuth(() =>
-          pb.collection("global_books").getOne(book.character_map),
-        ).catch(() => null);
-      }
-
-      return reply.send({ ...book, character_map: globalBook });
+      return reply.send(book);
     },
   );
 
@@ -154,7 +146,6 @@ export async function booksRoute(app: FastifyInstance): Promise<void> {
         id: book.id,
         updated: book.updated,
         enrichment_status: book.enrichment_status,
-        character_analysis_status: book.character_analysis_status,
         image_gen_status: book.image_gen_status,
       });
     },
@@ -261,39 +252,6 @@ export async function booksRoute(app: FastifyInstance): Promise<void> {
       );
 
       return reply.send({ enrichment_status: "pending" });
-    },
-  );
-
-  app.post<{ Params: { id: string } }>(
-    "/books/:id/analyze-characters",
-    { preHandler: requireAuth },
-    async (request, reply) => {
-      const book = await loadOwnedBook(request.params.id, request.user!.id);
-      if (!book) return reply.code(404).send({ error: "Not found" });
-
-      const title = book.title as string;
-      const cached = await withAdminAuth(() =>
-        pb.collection("global_books").getFirstListItem(buildFilter("title = {:title}", { title })),
-      ).catch(() => null);
-
-      if (cached && cached.character_map) {
-        await withAdminAuth(() =>
-          pb.collection("books").update(book.id, {
-            character_map: cached.id,
-            character_analysis_status: "completed",
-          }),
-        );
-        return reply.send({ character_analysis_status: "completed", cached: true });
-      }
-
-      await withAdminAuth(() =>
-        pb.collection("books").update(book.id, { character_analysis_status: "pending" }),
-      );
-      void runCharacterAnalysis(book.id).catch((err) =>
-        logger.error({ err, bookId: book.id }, "[books] Inline character analysis trigger failed"),
-      );
-
-      return reply.send({ character_analysis_status: "pending", cached: false });
     },
   );
 }

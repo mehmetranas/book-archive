@@ -17,11 +17,6 @@ export const ENRICHMENT_MODELS = [
   "anthropic/claude-haiku-4.5",
 ];
 
-// gemini-2.0-flash-001 (the original hook's model) 404s on OpenRouter now -
-// bumped to the current equivalent in the same family, same single-model,
-// no-fallback behavior.
-export const CHARACTER_GEN_MODELS = ["google/gemini-2.5-flash"];
-
 /**
  * Tries each model in order against OpenRouter's chat completions endpoint,
  * returning the first non-empty response. Throws only if every model fails.
